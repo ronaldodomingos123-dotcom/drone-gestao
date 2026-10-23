@@ -1,4 +1,4 @@
-# Protótipo — Gestão de Aplicações com Drones Agrícolas (Fase 3 · v1.5)
+# Protótipo — Gestão de Aplicações com Drones Agrícolas (v1.6.3)
 
 Protótipo **independente** de plataforma de gestão de aplicações com drones (cana-de-açúcar).
 Não tem nenhuma ligação com o aplicativo de Acompanhamento Diário já em uso: outra pasta, outro
