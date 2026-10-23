@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": [
+      "ES2021",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": [],
+    "paths": {
+      "html-to-image": [
+        "./node_modules/html-to-image",
+        "/opt/npm-tools/node_modules/html-to-image"
+      ],
+      "jszip": [
+        "./node_modules/jszip",
+        "/opt/npm-tools/node_modules/jszip"
+      ],
+      "pdf-lib": [
+        "./node_modules/pdf-lib",
+        "/opt/npm-tools/node_modules/pdf-lib"
+      ]
+    }
+  },
+  "include": [
+    "src"
+  ]
+}

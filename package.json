@@ -1,0 +1,23 @@
+{
+  "name": "drone-agricola-prototype",
+  "private": true,
+  "version": "1.6.3",
+  "type": "module",
+  "description": "Protótipo isolado (Fase 1) de plataforma de gestão de aplicações com drones agrícolas. Dados 100% fictícios.",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/test.mjs",
+    "e2e": "python3 tests/e2e/fluxo.py && python3 tests/e2e/campo.py && python3 tests/e2e/fase2.py"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "typescript": "^6.0.0"
+  },
+  "dependencies": {
+    "html-to-image": "^1.11.13",
+    "pdfjs-dist": "6.2.108",
+    "jszip": "3.10.1",
+    "pdf-lib": "1.17.1"
+  }
+}
