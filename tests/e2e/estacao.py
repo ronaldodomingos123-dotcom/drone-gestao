@@ -3,7 +3,7 @@ no detalhe da operação, no Diário, no relatório técnico/clima e a preserva�
 Uso: python3 tests/e2e/estacao.py <xlsx diário> <xlsx horário> [pasta de capturas]"""
 import sys, pathlib, re, subprocess, tempfile
 from playwright.sync_api import sync_playwright
-URL = pathlib.Path('dist/index.html').resolve().as_uri()
+URL = pathlib.Path('dist/index.html').resolve().as_uri() + '?modo=local'  # sem nuvem nos testes de tela
 DIARIO, HORARIO = sys.argv[1], sys.argv[2]
 SHOTS = pathlib.Path(sys.argv[3]) if len(sys.argv) > 3 else None
 TMP = pathlib.Path(tempfile.mkdtemp())

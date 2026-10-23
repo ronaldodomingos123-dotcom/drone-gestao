@@ -1,3 +1,4 @@
+import { usuarioLogado } from '../domain/base';
 /**
  * Central de relatórios (Fase 3): lista, visualização com filtros e exportação CSV / Excel / PDF.
  * Todos os formatos saem do MESMO objeto de relatório (domain/relatorios.ts).
@@ -12,7 +13,7 @@ import { icone } from '../ui/icons';
 import { carregarMotor, entregarArquivo } from '../ui/motores';
 
 const CHAVE_RESP = `${PREFIXO}responsavel`;
-export const responsavelAtual = () => { try { return localStorage.getItem(CHAVE_RESP) || 'Gestor (demo)'; } catch { return 'Gestor (demo)'; } };
+export const responsavelAtual = () => { try { return localStorage.getItem(CHAVE_RESP) || usuarioLogado(); } catch { return 'Gestor (demo)'; } };
 let operacaoTecnico = '';
 
 interface MotorExport { xlsx(r: Relatorio): Promise<Blob>; pdf(r: Relatorio): Promise<Uint8Array> }

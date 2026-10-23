@@ -3,7 +3,7 @@ Uso: python3 tests/e2e/pdf_lote.py [pasta-capturas] [pdf-real-opcional]
 Os PDFs do lote são FICTÍCIOS (tests/fixtures/gerar_pdfs.py ... lote); o PDF real, se informado, entra junto."""
 import sys, pathlib, re, json, time, shutil
 from playwright.sync_api import sync_playwright
-URL = pathlib.Path('dist/index.html').resolve().as_uri()
+URL = pathlib.Path('dist/index.html').resolve().as_uri() + '?modo=local'  # sem nuvem nos testes de tela
 import os
 LOTE = pathlib.Path(os.environ.get('LOTE', 'tests/fixtures/lote'))
 SHOTS = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1] != '-' else None

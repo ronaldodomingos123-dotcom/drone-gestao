@@ -3,7 +3,7 @@
 8 voos (4 fazendas × 2 drones) com o desconto no talhão indicado; 20/10 aponta a fazenda IPÊ sem OS."""
 import sys, pathlib, re
 from playwright.sync_api import sync_playwright
-URL = pathlib.Path('dist/index.html').resolve().as_uri()
+URL = pathlib.Path('dist/index.html').resolve().as_uri() + '?modo=local'  # sem nuvem nos testes de tela
 COD = str(pathlib.Path('tests/fixtures/acomp-codigo.txt').resolve())
 SHOTS = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else None
 res = []

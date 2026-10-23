@@ -1,4 +1,4 @@
-# Protótipo — Gestão de Aplicações com Drones Agrícolas (v1.6.3)
+# Protótipo — Gestão de Aplicações com Drones Agrícolas (v1.7)
 
 Protótipo **independente** de plataforma de gestão de aplicações com drones (cana-de-açúcar).
 Não tem nenhuma ligação com o aplicativo de Acompanhamento Diário já em uso: outra pasta, outro
@@ -94,6 +94,36 @@ scripts/       build (arquivo único) e execução de testes
 - Responsável: campo na tela do relatório (fica salvo no aparelho). Sem login, é um nome digitado — não é identificação verificada (isso é Fase 4).
 - Bibliotecas, embutidas e carregadas só ao exportar: **jszip** 3.10 (MIT) e **pdf-lib** 1.17 (MIT). Nada é enviado pela internet.
 - Toda área vem de voo (Fechamento do dia ou Registro de campo). Aplicado lançado sem voo em versões anteriores (v0.9.3–v1.1) continua contando na área, fora do ha/h.
+
+## Nuvem e acesso pela equipe (Fase 4 · v1.7)
+
+**Como funciona**
+- Um link (GitHub Pages, pasta `docs/`) abre sempre a versão mais nova do app, no celular ou no computador.
+- Os dados ficam numa tabela do Supabase (projeto próprio do protótipo). Cada aparelho guarda uma cópia e funciona sem internet; ao voltar a conexão, o que ficou pendente é enviado.
+- **Sem login: só leitura.** Para gravar, entra-se com e-mail/senha. Perfis: **Gestor** (tudo, inclusive usuários e restaurar versões), **Líder** (lança o dia a dia; não altera campanhas, metas, safra, aeronaves, colaboradores, turnos, produtos, unidades, limites nem troca a base inteira), **Visualizador** (só vê).
+- As regras valem **no banco** (`supabase/schema.sql`: RLS + funções), não só na tela: quem não tem permissão não grava mesmo chamando a API direto.
+- Cada gravação leva a versão-base: se outra pessoa gravou antes, as alterações são **mescladas item a item** (`src/domain/mesclar.ts`) e reenviadas; o mesmo item alterado pelos dois fica com a versão de quem enviou por último e o app avisa.
+- Histórico: as últimas 60 versões ficam guardadas; o Gestor pode voltar a qualquer uma (a atual também é guardada antes).
+- A auditoria passa a registrar a parte do e-mail antes do @ de quem estava logado (informado pelo app; o controle de quem PODE gravar é do banco).
+- Modo local (`?modo=local`): o app não usa a nuvem (testes ou uso isolado), com aviso na faixa.
+
+**Configurar (uma vez)**
+1. Supabase → SQL Editor → colar `supabase/schema.sql` com o e-mail do Gestor no lugar de `__EMAIL_GESTOR__` → Run.
+2. Authentication → Users → Add user → Create new user (e-mail do Gestor, senha, **Auto Confirm User**). O plano grátis só envia e-mail para membros da equipe do projeto (2 por hora), então as contas da equipe são criadas assim, com senha provisória; a pessoa troca a senha no app.
+3. Authentication → URL Configuration → Site URL = endereço do GitHub Pages.
+4. GitHub → Settings → Pages → Deploy from a branch → `main` / `/docs`.
+5. Abrir o link, entrar como Gestor, "Nuvem e acesso" → **Enviar dados deste aparelho** (no aparelho que tem a base real) → **Testar segurança da nuvem** (precisa dar 12/12).
+
+**Testes**
+- `bash tests/sql/rodar_teste_rls.sh` — 45 verificações das regras do banco num PostgreSQL 16 local (sem login, visualizador, líder, gestor, e-mail não confirmado, conflito de versão, histórico, último gestor).
+- `python3 tests/e2e/nuvem.py` — 34 verificações de tela com o mesmo schema.sql num PostgreSQL local (só o login e o gateway HTTP são simulados): dois aparelhos, leitura sem login, Líder lançando, Gestor recebendo, conflito com aparelho sem internet, teste de segurança, restauração, modo local.
+- Os demais testes de tela rodam em modo local.
+
+**Limites conhecidos desta etapa**
+- A sincronização envia a base inteira a cada gravação (adequado para equipe pequena; o tamanho atual é de centenas de KB).
+- A atualização entre aparelhos é por verificação a cada 10 s (não é instantânea).
+- O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
+- Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
 ## Checape do painel e imagem (v1.6.1)
 

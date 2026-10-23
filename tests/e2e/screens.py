@@ -2,7 +2,7 @@
 import sys, pathlib
 from playwright.sync_api import sync_playwright
 OUT = pathlib.Path(sys.argv[1]); OUT.mkdir(parents=True, exist_ok=True)
-URL = pathlib.Path('dist/index.html').resolve().as_uri()
+URL = pathlib.Path('dist/index.html').resolve().as_uri() + '?modo=local'  # sem nuvem nos testes de tela
 ROTAS = ['dashboard','campo','campanhas','relatorios/sequencia','aplicacoes','aplicacoes/nova','ordens','paradas','clima','planejamento','turnos','fazendas','aeronaves','colaboradores','produtos','relatorios','relatorios/diario','auditoria','configuracoes']
 DISP = {'desktop': dict(viewport={'width':1440,'height':900}), 'tablet': dict(viewport={'width':800,'height':1280}, device_scale_factor=2, has_touch=True), 'iphone': dict(viewport={'width':390,'height':844}, device_scale_factor=3, is_mobile=True, has_touch=True)}
 erros = []

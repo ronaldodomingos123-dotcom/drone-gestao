@@ -1387,3 +1387,23 @@ test('dias da campanha e meta da safra: corridos, com aplicação, parados (chuv
   assert.equal(removerDiaParado(ds, ds.diasParados![0].id), null);
   assert.equal(diasCampanha(ds, ds.campanhas[0].id, hoje)!.parados, 1);
 });
+
+import { mesclar3 } from '../src/domain/mesclar';
+test('nuvem: mescla em 3 vias junta o que cada um gravou, respeita exclusões e marca conflito no mesmo item', () => {
+  const base = { versao: 4, metas: { m: 1 }, operacoes: [{ id: 'a', area: 1 }, { id: 'b', area: 2 }, { id: 'c', area: 3 }], diasParados: [] as { id: string; motivo: string }[] };
+  const local = { ...base, operacoes: [{ id: 'a', area: 1 }, { id: 'b', area: 20 }, { id: 'c', area: 3 }, { id: 'd', area: 4 }], diasParados: [{ id: 'p1', motivo: 'Vento' }] };
+  const remoto = { ...base, metas: { m: 2 }, operacoes: [{ id: 'a', area: 10 }, { id: 'b', area: 2 }, { id: 'e', area: 5 }], diasParados: [{ id: 'p2', motivo: 'Chuva' }] };
+  const r = mesclar3(base, local, remoto);
+  assert.deepEqual(r.valor.operacoes, [{ id: 'a', area: 10 }, { id: 'b', area: 20 }, { id: 'e', area: 5 }, { id: 'd', area: 4 }], 'a: nuvem; b: local; c: apagado na nuvem; d e e: novos');
+  assert.deepEqual(r.valor.metas, { m: 2 }, 'metas: só a nuvem mudou');
+  assert.deepEqual(r.valor.diasParados.map((x) => x.id), ['p2', 'p1'], 'os dois dias parados entram');
+  assert.equal(r.conflitos.length, 0);
+  const l2 = { ...base, operacoes: [{ id: 'a', area: 7 }, ...base.operacoes.slice(1)] };
+  const r2 = { ...base, operacoes: [{ id: 'a', area: 9 }, ...base.operacoes.slice(1)] };
+  const m2 = mesclar3(base, l2, r2);
+  assert.equal(m2.valor.operacoes[0].area, 7, 'mesmo item alterado pelos dois: vale o deste aparelho');
+  assert.deepEqual(m2.conflitos, ['operacoes:a']);
+  const l3 = { ...base, operacoes: base.operacoes.filter((o) => o.id !== 'b') };
+  const r3 = { ...base, operacoes: base.operacoes.map((o) => (o.id === 'b' ? { ...o, area: 99 } : o)) };
+  assert.deepEqual(mesclar3(base, l3, r3).valor.operacoes.map((o) => o.id), ['a', 'b', 'c'], 'apagado aqui mas alterado na nuvem: mantém (não perde o trabalho do outro)');
+});

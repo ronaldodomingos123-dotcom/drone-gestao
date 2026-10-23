@@ -2,7 +2,7 @@
 Uso: python3 tests/e2e/cruzamento.py <mapa.kml> [pasta de capturas]"""
 import sys, pathlib, re, time
 from playwright.sync_api import sync_playwright
-URL = pathlib.Path('dist/index.html').resolve().as_uri()
+URL = pathlib.Path('dist/index.html').resolve().as_uri() + '?modo=local'  # sem nuvem nos testes de tela
 MAPA = sys.argv[1]
 SHOTS = pathlib.Path(sys.argv[2]) if len(sys.argv) > 2 else None
 SEQ = pathlib.Path('tests/fixtures/fungicida-sequencia.txt').read_text()

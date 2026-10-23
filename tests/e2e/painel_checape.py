@@ -2,7 +2,7 @@
 aparecem no cartão; botão Exportar imagem gera um PNG do painel."""
 import sys, pathlib, re, datetime, struct
 from playwright.sync_api import sync_playwright
-URL = pathlib.Path('dist/index.html').resolve().as_uri()
+URL = pathlib.Path('dist/index.html').resolve().as_uri() + '?modo=local'  # sem nuvem nos testes de tela
 SHOTS = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else None
 res = []
 def ok(n, c): res.append(('PASSOU' if c else 'FALHOU', n)); return c

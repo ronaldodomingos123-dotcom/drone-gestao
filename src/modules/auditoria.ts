@@ -27,7 +27,7 @@ export function renderAuditoria(raiz: HTMLElement) {
 function renderAlteracoes(raiz: HTMLElement) {
   const regs = [...estado.ds.auditoria].sort((a, b) => b.quando.localeCompare(a.quando));
   raiz.innerHTML = `
-    ${aviso('info', 'Sem login nesta fase: o usuário aparece como "Gestor (demo)". Com autenticação (Fase 4), cada registro terá o usuário real. Este histórico fica no mesmo armazenamento da base e vai junto no backup.')}
+    ${aviso('info', 'Com a nuvem, cada registro leva o nome de quem estava logado (parte do e-mail antes do @); sem login ou no modo local aparece "Gestor (demo)". O nome é informado pelo app; o controle de QUEM pode gravar é feito pelo banco. Este histórico vai junto com os dados e no backup.')}
     <section class="cartao"><div id="au-tab"></div></section>`;
   tabela<RegistroAuditoria>(raiz.querySelector('#au-tab') as HTMLElement, regs, [
     { id: 'q', titulo: 'Quando', valor: (r) => r.quando, render: (r) => esc(fmtDataHora(iso(r.quando))) },

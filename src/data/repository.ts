@@ -13,9 +13,17 @@ import { migrar, recalcularStatusOS } from '../domain/base';
 export const PREFIXO = 'dap-proto-v1:';
 const CHAVE_DATASET = `${PREFIXO}dataset`;
 
+/**
+ * Ganchos da nuvem (Fase 4): `antes` pode recusar a gravação (lança erro com a mensagem), `depois` agenda o
+ * envio. A gravação local continua sendo a primeira e a fonte do que se vê na tela.
+ */
+export const ganchosNuvem: { antes?: (novo: Dataset) => void; depois?: (ds: Dataset) => void } = {};
+
 export interface Repositorio {
   carregar(): Dataset;
   salvar(ds: Dataset): void;
+  /** Grava só neste aparelho, sem ganchos (usado pela sincronização ao receber dados da nuvem). */
+  salvarLocal(ds: Dataset): void;
   adicionarOperacao(op: Operacao, paradas: Parada[]): Dataset;
   /** Grava várias operações de uma vez (tudo ou nada). */
   adicionarOperacoes(ops: Operacao[], paradas: Parada[]): Dataset;
@@ -52,16 +60,23 @@ export function criarRepositorio(): Repositorio {
             // base irrecuperável: guarda uma cópia antes de recriar, para não perder nada
             storage.setItem(`${PREFIXO}dataset-irrecuperavel-${Date.now()}`, bruto);
           }
-        } catch {
-          /* dado corrompido: recria a demonstração */
+        } catch (e) {
+          /* dado corrompido: guarda o texto e recria a demonstração */
+          console.error('Base local ilegível:', e);
+          try { const b = storage.getItem(CHAVE_DATASET); if (b) storage.setItem(`${PREFIXO}dataset-irrecuperavel-${Date.now()}`, b); } catch { /* sem espaço */ }
         }
       } else if (memoria) return memoria;
       const ds = gerarDemo();
-      repo.salvar(ds);
+      repo.salvarLocal(ds);
       return ds;
     },
     salvar(ds) {
       recalcularStatusOS(ds); // status das OS sempre coerente com as áreas no que é gravado (e no backup)
+      ganchosNuvem.antes?.(ds);
+      repo.salvarLocal(ds);
+      ganchosNuvem.depois?.(ds);
+    },
+    salvarLocal(ds) {
       if (storage) {
         try {
           storage.setItem(CHAVE_DATASET, JSON.stringify(ds));

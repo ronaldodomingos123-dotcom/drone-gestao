@@ -2,7 +2,7 @@
 campanha recebem 15 L/ha e o início da campanha é o informado. Uso: python3 tests/e2e/taxa.py <pdf real da OS>"""
 import sys, pathlib, re
 from playwright.sync_api import sync_playwright
-URL = pathlib.Path('dist/index.html').resolve().as_uri()
+URL = pathlib.Path('dist/index.html').resolve().as_uri() + '?modo=local'  # sem nuvem nos testes de tela
 PDF = sys.argv[1]
 SEQ = pathlib.Path('tests/fixtures/fungicida-sequencia.txt').read_text()
 res = []

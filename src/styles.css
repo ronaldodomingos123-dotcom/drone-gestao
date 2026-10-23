@@ -992,3 +992,22 @@ button.seq-apl:hover { border-color: var(--verde-500); background: #eef7f1; }
 [data-dp="camps"] { display: flex; flex-direction: column; gap: 4px; }
 fieldset.campo { border: 0; padding: 0; margin: 10px 0; }
 fieldset.campo legend { font-size: 12.5px; font-weight: 600; color: var(--texto-2); margin-bottom: 6px; padding: 0; }
+
+/* Nuvem (Fase 4) */
+.nuvem-chip { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; margin-right: 8px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--linha-forte); background: var(--surface-2); color: var(--texto-2); font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap; max-width: 52vw; }
+.nuvem-chip span { overflow: hidden; text-overflow: ellipsis; }
+.nuvem-chip em { font-style: normal; font-weight: 600; color: var(--texto); border-left: 1px solid var(--linha-forte); padding-left: 6px; }
+.nuvem-chip.nv-ok { border-color: #9fd3b5; background: #eaf7ef; color: #1f7a45; }
+.nuvem-chip.nv-aviso { border-color: #f0c98a; background: #fff6e6; color: #8a5a00; }
+.nuvem-chip.nv-erro { border-color: #f0a3a3; background: #fdecec; color: #a12b2b; }
+.nuvem-chip.nv-local { border-color: #c9b6ef; background: #f4effd; color: #5b3aa8; }
+b.nv-ok { color: #1f7a45; } b.nv-aviso { color: #8a5a00; } b.nv-erro { color: #a12b2b; }
+.np-sec { border-top: 1px solid var(--linha); padding: 12px 0 4px; }
+.np-sec:first-child { border-top: 0; padding-top: 0; }
+.np-dest { background: var(--surface-2); border: 1px solid var(--linha); border-radius: 12px; padding: 12px; margin: 10px 0; }
+.np-acoes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.np-linha { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; }
+.np-local { margin-top: 14px; }
+.faixa-demo.nv-faixa-ro { background: #eef3fb; }
+@media (max-width: 700px) { .nuvem-chip em { display: none; } .nuvem-chip { max-width: 44vw; margin-right: 4px; } }
+@media (max-width: 700px) { .nuvem-chip.nv-anon span { display: none; } .nuvem-chip.nv-anon em { display: inline; border-left: 0; padding-left: 0; } }

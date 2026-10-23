@@ -16,6 +16,7 @@ const res = await esbuild.build({
   entryPoints: ['src/main.ts'], bundle: true, write: false, outdir: 'dist', minify: true, format: 'iife',
   target: ['es2020', 'safari15'], legalComments: 'none', logLevel: 'warning',
   nodePaths: ['node_modules', '/opt/npm-tools/node_modules'],
+  define: { __VERSAO__: JSON.stringify(JSON.parse(readFileSync('package.json', 'utf8')).version) },
 });
 const js = res.outputFiles.find((f) => f.path.endsWith('.js')).text;
 // Motor de PDF: pacote separado, guardado como texto e carregado só quando usado (não pesa na abertura)
@@ -39,4 +40,8 @@ const html = readFileSync('index.html', 'utf8')
   .replace('<!--JS-->', () => `<script type="text/plain" id="motor-export">${expJs.replace(/<\/script/gi, '<\\/script').replace(/<!--/g, '<\\!--')}</script><script type="text/plain" id="motor-pdf">${motorJs.replace(/<\/script/gi, '<\\/script').replace(/<!--/g, '<\\!--')}</script><script>${js.replace(/<\/script/gi, '<\\/script')}</script>`);
 mkdirSync('dist', { recursive: true });
 writeFileSync('dist/index.html', html);
+// cópia publicada pelo GitHub Pages (pasta docs/ do repositório)
+mkdirSync('docs', { recursive: true });
+writeFileSync('docs/index.html', html);
+writeFileSync('docs/.nojekyll', '');
 console.log(`✔ dist/index.html gerado (${(html.length / 1024).toFixed(0)} KB)`);

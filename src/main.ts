@@ -1,5 +1,7 @@
 import './styles.css';
-import { carregarEstado } from './state';
+import { atualizarDataset, carregarEstado, redesenhar, repo } from './state';
+import { iniciarNuvem } from './data/nuvem';
+import { atualizarFaixa, iniciarNuvemUI } from './modules/nuvemUI';
 import { limparGraficos } from './ui/charts';
 import { esc, toast } from './ui/dom';
 import { icone } from './ui/icons';
@@ -58,7 +60,7 @@ function shell(app: HTMLElement) {
   const grupos = [...new Set(MODULOS.filter((m) => m.menu !== false).map((m) => m.grupo))];
   app.innerHTML = `
     <aside class="lateral" id="lateral" aria-label="Menu principal">
-      <div class="marca"><span class="marca-ico">${icone('drone', 20)}</span><div><b>Gestão de Aplicações</b><small>Drones agrícolas · protótipo</small></div>
+      <div class="marca"><span class="marca-ico">${icone('drone', 20)}</span><div><b>Gestão de Aplicações</b><small>Drones agrícolas · protótipo v${__VERSAO__}</small></div>
         <button class="btn-icone fechar-menu" data-menu="fechar" aria-label="Fechar menu">${icone('fechar', 18)}</button></div>
       <nav>${grupos.map((g) => `<div class="nav-grupo"><span class="nav-tit">${esc(g)}</span>${MODULOS.filter((m) => m.grupo === g && m.menu !== false).map((m) => `
         <a href="#/${m.rota}" data-rota="${m.rota}">${icone(m.icone, 18)}<span>${esc(m.titulo)}</span>${m.situacao !== 'pronto' ? `<em class="nav-sit nav-${m.situacao}">${ROTULO_SIT[m.situacao]}</em>` : ''}</a>`).join('')}</div>`).join('')}</nav>
@@ -97,12 +99,7 @@ function navegar() {
   const mod = MODULOS.find((m) => m.rota === rota) ?? MODULOS[0];
   document.body.classList.remove('menu-aberto');
   document.body.classList.toggle('rota-form', mod.rota === 'aplicacoes/nova');
-  const faixa = document.querySelector('.faixa-demo') as HTMLElement;
-  const propria = estado.ds.origemBase === 'propria';
-  faixa.classList.toggle('propria', propria);
-  faixa.querySelector('span')!.innerHTML = propria
-    ? '<b>Base própria</b> · dados salvos só neste aparelho · faça backup em Configurações regularmente.'
-    : '<b>DADOS DE DEMONSTRAÇÃO — fictícios.</b> Para usar com dados reais: Configurações → Começar base própria.';
+  atualizarFaixa();
   limparGraficos();
   document.querySelectorAll('.modal-fundo').forEach((m) => m.remove());
   document.querySelectorAll('[data-rota]').forEach((a) => {
@@ -179,6 +176,8 @@ function iniciar() {
   window.addEventListener('hashchange', navegar);
   document.addEventListener('click', acoesCadastro, true);
   window.addEventListener('error', (e) => toast(`Erro inesperado: ${e.message}`, 'erro'));
+  iniciarNuvem({ atual: () => estado.ds, aplicar: atualizarDataset, salvarLocal: (ds) => repo.salvarLocal(ds), redesenhar, toast });
+  iniciarNuvemUI();
   navegar();
 }
 

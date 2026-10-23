@@ -1,7 +1,7 @@
 """v0.9: importar sequência a partir do PDF da OS (PDFs FICTÍCIOS gerados por tests/fixtures/gerar_pdfs.py)."""
 import sys, pathlib, re
 from playwright.sync_api import sync_playwright
-URL = pathlib.Path('dist/index.html').resolve().as_uri()
+URL = pathlib.Path('dist/index.html').resolve().as_uri() + '?modo=local'  # sem nuvem nos testes de tela
 FIX = pathlib.Path('tests/fixtures')
 SHOTS = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else None
 res = []

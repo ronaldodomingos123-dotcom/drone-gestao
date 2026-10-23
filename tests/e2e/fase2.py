@@ -2,7 +2,7 @@
 importação de talhões, registro de turno, reordenar/concluir, correção auditável, backup/restauração."""
 import sys, pathlib, re, json
 from playwright.sync_api import sync_playwright
-URL = pathlib.Path('dist/index.html').resolve().as_uri()
+URL = pathlib.Path('dist/index.html').resolve().as_uri() + '?modo=local'  # sem nuvem nos testes de tela
 SHOTS = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else None
 res = []
 def ok(n, c): res.append(('PASSOU' if c else 'FALHOU', n)); return c

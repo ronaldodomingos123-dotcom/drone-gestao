@@ -1,7 +1,7 @@
 """Fase 3.3: rastreabilidade de OS e talhão (linha do tempo campo + alterações) e exportação."""
 import sys, pathlib, re, subprocess
 from playwright.sync_api import sync_playwright
-URL = pathlib.Path('dist/index.html').resolve().as_uri()
+URL = pathlib.Path('dist/index.html').resolve().as_uri() + '?modo=local'  # sem nuvem nos testes de tela
 SHOTS = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else None
 TMP = pathlib.Path('/tmp/claude-0/-home-claude/2892429b-2f99-5af8-bd4a-dce4628ac0a3/scratchpad/exports'); TMP.mkdir(parents=True, exist_ok=True)
 res = []

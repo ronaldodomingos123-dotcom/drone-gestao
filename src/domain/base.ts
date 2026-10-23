@@ -8,6 +8,10 @@ import type { Dataset, EntidadeAuditada, RegistroAuditoria } from './types';
 /** Versão do esquema de dados. Bases antigas são MIGRADAS (nunca apagadas). */
 export const VERSAO_ESQUEMA = 5;
 export const USUARIO_PADRAO = 'Gestor (demo)';
+/** Usuário logado na nuvem (Fase 4): vai para a auditoria. Sem login/modo local: USUARIO_PADRAO. */
+let usuarioAtual = USUARIO_PADRAO;
+export const definirUsuarioAtual = (u: string | null) => { usuarioAtual = u || USUARIO_PADRAO; };
+export const usuarioLogado = () => usuarioAtual;
 
 /** Atualiza uma base antiga para o esquema atual, preservando todos os registros. Retorna null se irrecuperável. */
 export function migrar(bruto: unknown): Dataset | null {
@@ -60,7 +64,7 @@ export function registrar(ds: Dataset, r: Omit<RegistroAuditoria, 'id' | 'quando
   const reg: RegistroAuditoria = {
     id: `au-${Date.now().toString(36)}-${(++seq).toString(36)}`,
     quando: new Date().toISOString(),
-    usuario: r.usuario ?? USUARIO_PADRAO,
+    usuario: r.usuario ?? usuarioAtual,
     ...r,
     antes: r.antes === undefined ? undefined : JSON.parse(JSON.stringify(r.antes)),
     depois: r.depois === undefined ? undefined : JSON.parse(JSON.stringify(r.depois)),

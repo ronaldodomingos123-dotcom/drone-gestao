@@ -2,7 +2,7 @@
 Área de cada drone em cada fazenda vem do KML; série do drone e local da fazenda ficam aprendidos."""
 import sys, pathlib, re
 from playwright.sync_api import sync_playwright
-URL = pathlib.Path('dist/index.html').resolve().as_uri()
+URL = pathlib.Path('dist/index.html').resolve().as_uri() + '?modo=local'  # sem nuvem nos testes de tela
 SEQ = pathlib.Path('tests/fixtures/fungicida-sequencia.txt').read_text()
 TAL = pathlib.Path('tests/fixtures/fungicida-talhoes.txt').read_text()
 TRA = pathlib.Path('tests/fixtures/fungicida-tratamento.txt').read_text()
