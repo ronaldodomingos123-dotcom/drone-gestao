@@ -95,6 +95,11 @@ scripts/       build (arquivo único) e execução de testes
 - Bibliotecas, embutidas e carregadas só ao exportar: **jszip** 3.10 (MIT) e **pdf-lib** 1.17 (MIT). Nada é enviado pela internet.
 - Toda área vem de voo (Fechamento do dia ou Registro de campo). Aplicado lançado sem voo em versões anteriores (v0.9.3–v1.1) continua contando na área, fora do ha/h.
 
+## Menu lateral recolhível (v1.7.1)
+
+- No computador, o botão **‹** no topo do menu lateral recolhe o menu: o conteúdo passa a usar a largura toda da tela. O **☰** no topo abre o menu por cima (gaveta) e o botão **›** fixa de novo. A escolha fica gravada no aparelho.
+- As imagens exportadas (Diário, Sequência, Dashboard) usam a largura da tela quando ela é maior que a mínima de exportação; com o menu recolhido a imagem sai mais larga (ex.: Diário de 1.200 para 1.392 px de conteúdo numa tela de 1.440 px, em resolução 2×).
+
 ## Nuvem e acesso pela equipe (Fase 4 · v1.7)
 
 **Como funciona**

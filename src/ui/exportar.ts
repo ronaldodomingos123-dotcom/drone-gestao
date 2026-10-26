@@ -5,6 +5,8 @@ import { toast } from './dom';
 export async function exportarPNG(el: HTMLElement, arquivo: string, titulo: string, botao?: HTMLButtonElement, ocultarClasses: string[] = []) {
   const rotulo = botao?.innerHTML;
   if (botao) { botao.disabled = true; botao.textContent = 'Gerando imagem…'; }
+  // largura da imagem: a da tela, quando for maior que a mínima de exportação (ex.: com o menu recolhido)
+  el.style.setProperty('--larg-tela', `${Math.round(el.getBoundingClientRect().width)}px`);
   el.classList.add('exportando');
   try {
     const blob = await toBlob(el, {
@@ -30,6 +32,7 @@ export async function exportarPNG(el: HTMLElement, arquivo: string, titulo: stri
     if ((err as Error).name !== 'AbortError') toast(`Não foi possível gerar a imagem: ${(err as Error).message}`, 'erro');
   } finally {
     el.classList.remove('exportando');
+    el.style.removeProperty('--larg-tela');
     if (botao && rotulo !== undefined) { botao.disabled = false; botao.innerHTML = rotulo; }
   }
 }

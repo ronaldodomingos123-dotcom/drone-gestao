@@ -61,6 +61,7 @@ function shell(app: HTMLElement) {
   app.innerHTML = `
     <aside class="lateral" id="lateral" aria-label="Menu principal">
       <div class="marca"><span class="marca-ico">${icone('drone', 20)}</span><div><b>Gestão de Aplicações</b><small>Drones agrícolas · protótipo v${__VERSAO__}</small></div>
+        <button class="btn-icone fixar-menu" data-menu="fixar" aria-label="Recolher menu" title="Recolher menu (mais espaço na tela e nas imagens exportadas)">${icone('esq', 18)}</button>
         <button class="btn-icone fechar-menu" data-menu="fechar" aria-label="Fechar menu">${icone('fechar', 18)}</button></div>
       <nav>${grupos.map((g) => `<div class="nav-grupo"><span class="nav-tit">${esc(g)}</span>${MODULOS.filter((m) => m.grupo === g && m.menu !== false).map((m) => `
         <a href="#/${m.rota}" data-rota="${m.rota}">${icone(m.icone, 18)}<span>${esc(m.titulo)}</span>${m.situacao !== 'pronto' ? `<em class="nav-sit nav-${m.situacao}">${ROTULO_SIT[m.situacao]}</em>` : ''}</a>`).join('')}</div>`).join('')}</nav>
@@ -90,8 +91,27 @@ function shell(app: HTMLElement) {
   }, true);
   app.addEventListener('click', (e) => {
     const t = (e.target as HTMLElement).closest('[data-menu]') as HTMLElement | null;
-    if (t) document.body.classList.toggle('menu-aberto', t.dataset.menu === 'abrir');
+    if (!t) return;
+    if (t.dataset.menu === 'fixar') { definirMenuRecolhido(!document.body.classList.contains('menu-recolhido')); return; }
+    document.body.classList.toggle('menu-aberto', t.dataset.menu === 'abrir');
   });
+  definirMenuRecolhido(lerMenuRecolhido(), false);
+}
+
+/** Menu lateral recolhível no computador: recolhido = conteúdo (e imagens exportadas) usam a largura toda. */
+const CHAVE_MENU = 'dap-proto-v1:menu-recolhido';
+function lerMenuRecolhido(): boolean { try { return localStorage.getItem(CHAVE_MENU) === '1'; } catch { return false; } }
+function definirMenuRecolhido(recolhido: boolean, redesenhar = true) {
+  document.body.classList.toggle('menu-recolhido', recolhido);
+  document.body.classList.remove('menu-aberto');
+  try { localStorage.setItem(CHAVE_MENU, recolhido ? '1' : '0'); } catch { /* preferência só nesta sessão */ }
+  const b = document.querySelector('.fixar-menu') as HTMLElement | null;
+  if (b) {
+    const rot = recolhido ? 'Fixar menu aberto' : 'Recolher menu (mais espaço na tela e nas imagens exportadas)';
+    b.title = rot; b.setAttribute('aria-label', rot); b.innerHTML = icone(recolhido ? 'dir' : 'esq', 18);
+  }
+  // gráficos são desenhados na largura da tela: redesenha com a nova largura
+  if (redesenhar) window.dispatchEvent(new HashChangeEvent('hashchange'));
 }
 
 function navegar() {
