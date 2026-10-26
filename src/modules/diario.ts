@@ -182,7 +182,7 @@ function desenhar(host: HTMLElement) {
     <div class="dia-dupla inv">
       <section class="cartao">
         <header class="cartao-cab"><div><h2 class="dia-tit">${icone('info', 16)} Observações</h2></div></header>
-        ${r.observacoes.length ? `<ul class="dia-obs">${r.observacoes.map((o) => `<li><b>${esc(o.aeronave)}</b> ${esc(o.texto)}</li>`).join('')}</ul>` : '<p class="vazio-txt">Sem observações registradas.</p>'}
+        ${r.observacoes.length ? `<ul class="dia-obs">${r.observacoes.map((o) => `<li><b>${esc(o.aeronave)}</b> ${esc(o.texto)}</li>`).join('')}</ul>` : '<p class="vazio-txt">Sem observações digitadas neste dia.</p>'}
       </section>
       <section class="cartao">
         <header class="cartao-cab"><div><h2 class="dia-tit">${icone('historico', 16)} Linha do tempo</h2><p>Gerada das paradas registradas · abastecimentos omitidos</p></div></header>
@@ -214,7 +214,7 @@ function desenhar(host: HTMLElement) {
       ${botoesExportar()}
     </div>
     ${corpo}
-    <p class="nota">Dados fictícios. Dia da operação = dia em que começou (aplicação noturna que passa da meia-noite conta no dia de início).</p>`;
+    <p class="nota">${estado.ds.origemBase === 'propria' ? '' : 'Dados fictícios (demonstração). '}Dia da operação = dia em que começou (aplicação noturna que passa da meia-noite conta no dia de início).</p>`;
 }
 
 /** Clima da estação meteorológica para cada operação do dia (só aparece se houver estação ligada). */

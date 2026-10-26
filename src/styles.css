@@ -494,7 +494,12 @@ tr.invalido td, .produto-linha.invalido, .clima-cartao.invalido, .parada-linha.i
 /* ============ Relatórios / Diário ============ */
 #diario.exportando { width: max(1200px, var(--larg-tela, 0px)); box-sizing: border-box; padding: 16px; }
 #diario.exportando .dia-cab-chips { width: auto; }
-#diario.exportando .dia-chip { width: auto; max-width: 280px; }
+#diario.exportando .dia-chip { width: auto; max-width: none; white-space: nowrap; }
+/* na imagem a fonte pode ser outra (a do sistema): o cabeçalho não quebra linha, para não sobrepor os cartões */
+#diario.exportando .dia-cab { flex-wrap: nowrap; }
+#diario.exportando .dia-cab-tit { min-width: 0; flex: 1 1 auto; overflow: hidden; }
+#diario.exportando .dia-cab-tit h1, #diario.exportando .dia-cab-tit p, #diario.exportando .dia-cab-tit small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#diario.exportando .dia-cab-chips { flex-wrap: nowrap; flex-shrink: 0; }
 #diario.exportando .dia-cab h1 { font-size: 24px; }
 #diario.exportando .dia-kpi .dia-ic, #diario.exportando .dia-mini .dia-ic { display: grid; }
 #diario.exportando .dia-progresso { flex-direction: row; }

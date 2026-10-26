@@ -95,6 +95,12 @@ scripts/       build (arquivo único) e execução de testes
 - Bibliotecas, embutidas e carregadas só ao exportar: **jszip** 3.10 (MIT) e **pdf-lib** 1.17 (MIT). Nada é enviado pela internet.
 - Toda área vem de voo (Fechamento do dia ou Registro de campo). Aplicado lançado sem voo em versões anteriores (v0.9.3–v1.1) continua contando na área, fora do ha/h.
 
+## Diário: imagem e observações (v1.7.2)
+
+- Imagem exportada: o cabeçalho (data, campanha, turno · líder) não quebra linha, para não sobrepor os cartões quando a imagem usa a fonte do sistema.
+- Observações: só o que foi digitado (ficha / app de acompanhamento). As notas técnicas automáticas ("Fechamento do dia…", "Data corrigida…") continuam no registro de cada voo, mas não aparecem no Diário; texto igual em vários drones aparece uma vez.
+- Rodapé: "Dados fictícios" só aparece com a base de demonstração.
+
 ## Menu lateral recolhível (v1.7.1)
 
 - No computador, o botão **‹** no topo do menu lateral recolhe o menu: o conteúdo passa a usar a largura toda da tela. O **☰** no topo abre o menu por cima (gaveta) e o botão **›** fixa de novo. A escolha fica gravada no aparelho.

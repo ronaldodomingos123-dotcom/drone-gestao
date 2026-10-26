@@ -166,14 +166,31 @@ export function resumoDia(ds: Dataset, idx: Indices, data: string, f: FiltroDia)
     campanhas,
     impedidas: ops.filter((o) => o.status === 'impedida_clima').length,
     eventos,
-    observacoes: ops.flatMap((o) => {
-      const ac = ds.aeronaves.find((a) => a.id === o.aeronaveId)?.identificacao ?? '—';
-      return [o.observacoesOperador, o.observacoesTecnicas].filter((t): t is string => !!t && !!t.trim()).map((texto) => ({ aeronave: ac, texto }));
-    }),
+    observacoes: observacoesDigitadas(ds, ops),
     planejadoEscopo: ordens.reduce((s, o) => s + areaPlanejadaOS(o), 0),
     obstaculosEscopo: ordens.reduce((s, o) => s + areaObstaculo(o, aplicadoPorItem(aplicacoes(ds))), 0),
     acumuladoAteDia: opsAte.reduce((s, o) => s + areaOperacao(o), 0),
     diasOperacaoAteDia: [...porDia.values()].filter((v) => v > 0).length,
     areaPorDiaAteDia: [...porDia.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([d, area]) => ({ data: d, area })),
   };
+}
+
+/** Notas que o próprio app escreve (não foram digitadas): ficam no registro da operação, mas não no Diário. */
+const NOTA_AUTOMATICA = /^(Data corrigida:|Fechamento do dia\b|Importad[oa] d[oe] |Gerad[oa] (pelo|a partir))/i;
+
+/**
+ * Só o que foi digitado (observações do operador / da ficha), sem as notas técnicas automáticas.
+ * Texto igual em vários voos do dia aparece uma vez, com os drones juntos.
+ */
+export function observacoesDigitadas(ds: Dataset, ops: Operacao[]): { aeronave: string; texto: string }[] {
+  const porTexto = new Map<string, Set<string>>();
+  for (const o of ops) {
+    const ac = ds.aeronaves.find((a) => a.id === o.aeronaveId)?.identificacao ?? '—';
+    for (const parte of (o.observacoesOperador ?? '').split(/\s+·\s+(?=Encerramento:|Data corrigida:)|\n+/)) {
+      const t = parte.replace(/^Encerramento:\s*/i, '').trim();
+      if (!t || NOTA_AUTOMATICA.test(t)) continue;
+      (porTexto.get(t) ?? porTexto.set(t, new Set()).get(t)!).add(ac);
+    }
+  }
+  return [...porTexto.entries()].map(([texto, acs]) => ({ aeronave: [...acs].join(', '), texto }));
 }

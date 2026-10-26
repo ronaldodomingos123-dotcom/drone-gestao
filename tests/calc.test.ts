@@ -1407,3 +1407,15 @@ test('nuvem: mescla em 3 vias junta o que cada um gravou, respeita exclusões e 
   const r3 = { ...base, operacoes: base.operacoes.map((o) => (o.id === 'b' ? { ...o, area: 99 } : o)) };
   assert.deepEqual(mesclar3(base, l3, r3).valor.operacoes.map((o) => o.id), ['a', 'b', 'c'], 'apagado aqui mas alterado na nuvem: mantém (não perde o trabalho do outro)');
 });
+
+import { observacoesDigitadas } from '../src/domain/diario';
+test('Diário: observações só com o que foi digitado (sem notas automáticas), texto repetido aparece uma vez', () => {
+  const ds = { aeronaves: [{ id: 'a1', identificacao: 'T70-P DR-01' }, { id: 'a2', identificacao: 'T70-P DR-02' }] } as never;
+  const op = (aeronaveId: string, oper: string, tec: string) => ({ aeronaveId, observacoesOperador: oper, observacoesTecnicas: tec }) as never;
+  const r = observacoesDigitadas(ds, [
+    op('a1', 'Data corrigida: no app de acompanhamento constava 14/10/2026. · Encerramento: Fim do 1º Turno · atraso do gerador', 'Fechamento do dia (ficha diária). Área do drone por fazenda estimada por proporção.'),
+    op('a2', 'Data corrigida: no app de acompanhamento constava 14/10/2026. · Encerramento: Fim do 1º Turno · atraso do gerador', 'Fechamento do dia com KML de voo: …'),
+    op('a2', '', ''),
+  ]);
+  assert.deepEqual(r, [{ aeronave: 'T70-P DR-01, T70-P DR-02', texto: 'Fim do 1º Turno · atraso do gerador' }]);
+});
