@@ -33,7 +33,11 @@ export interface ResumoDia {
   inicioMin: number | null; // minutos desde 00:00 do dia
   fimMin: number | null; // pode passar de 1440
   jornadaMin: number;
-  minEfetivoSoma: number; // soma entre drones
+  minEfetivoSoma: number; // soma entre drones (base do ha/h por drone)
+  /** tempo em que pelo menos um drone estava aplicando (drones simultâneos contam uma vez) */
+  minEfetivoOperacao: number;
+  /** tempo dentro da janela dos voos em que nenhum drone estava aplicando */
+  minParadoOperacao: number;
   minParadoSoma: number;
   minTotalSoma: number;
   fazendas: { fazendaId: string; area: number; talhoes: number; os: string[] }[];
@@ -73,6 +77,7 @@ export function resumoDia(ds: Dataset, idx: Indices, data: string, f: FiltroDia)
   let inicioMin: number | null = null;
   let fimMin: number | null = null;
   let minEfetivoSoma = 0, minParadoSoma = 0, minTotalSoma = 0;
+  const janelas: [number, number][] = [], ativos: [number, number][] = [];
   const eventos: EventoLinhaTempo[] = [];
   const baseDia = isoLocalParaMin(`${data}T00:00`) ?? 0;
   const relativo = (iso: string) => (isoLocalParaMin(iso) ?? baseDia) - baseDia;
@@ -87,6 +92,14 @@ export function resumoDia(ds: Dataset, idx: Indices, data: string, f: FiltroDia)
     fimMin = fimMin === null ? fim : Math.max(fimMin, fim);
     const paradas = (idx.paradasPorOp.get(op.id) ?? []).slice().sort((a, b) => a.inicio.localeCompare(b.inicio));
     minEfetivoSoma += op.tempoEfetivoMin;
+    // intervalos: janela do voo e trechos aplicando (janela − paradas)
+    if (tot > 0 && op.status !== 'impedida_clima') {
+      janelas.push([ini, fim]);
+      let cur = ini;
+      const ps = paradas.map((p) => [Math.max(ini, relativo(p.inicio)), Math.min(fim, p.fim ? relativo(p.fim) : fim)] as [number, number]).filter(([a, b]) => b > a).sort((a, b) => a[0] - b[0]);
+      for (const [a, b] of ps) { if (a > cur) ativos.push([cur, a]); cur = Math.max(cur, b); }
+      if (fim > cur) ativos.push([cur, fim]);
+    }
     minParadoSoma += somaParadasMin(paradas);
     minTotalSoma += tot;
     if (op.status === 'impedida_clima') {
@@ -171,6 +184,8 @@ export function resumoDia(ds: Dataset, idx: Indices, data: string, f: FiltroDia)
     data, ops, areaDia, areaLancadaDia, inicioMin, fimMin,
     jornadaMin: inicioMin === null || fimMin === null ? 0 : fimMin - inicioMin,
     minEfetivoSoma, minParadoSoma, minTotalSoma,
+    minEfetivoOperacao: duracaoUniao(ativos),
+    minParadoOperacao: Math.max(0, duracaoUniao(janelas) - duracaoUniao(ativos)),
     fazendas, produtos, porAeronave: [...ma.values()].sort((a, b) => b.area - a.area),
     climaInicial, climaFinal,
     turnos: [...new Set(ops.map((o) => o.turnoId))],
@@ -234,4 +249,15 @@ export function editarObservacao(ds: Dataset, opIds: string[], antigo: string, n
   if (!mudou) return 'Observação não encontrada (talvez já tenha sido alterada). Atualize a tela.';
   registrar(ds, { entidade: 'operacao', entidadeId: opIds[0], acao: n ? 'editar' : 'excluir', resumo: n ? `Observação editada: "${antigo}" → "${n}"` : `Observação excluída: "${antigo}"`, antes: antigo, depois: n ?? undefined });
   return null;
+}
+
+/** Duração da união de intervalos (minutos), sem contar duas vezes o que se sobrepõe. */
+export function duracaoUniao(iv: [number, number][]): number {
+  const o = iv.filter(([a, b]) => b > a).sort((x, y) => x[0] - y[0]);
+  let tot = 0, ini = -Infinity, fim = -Infinity;
+  for (const [a, b] of o) {
+    if (a > fim) { if (fim > ini) tot += fim - ini; ini = a; fim = b; } else fim = Math.max(fim, b);
+  }
+  if (fim > ini) tot += fim - ini;
+  return tot;
 }

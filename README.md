@@ -95,6 +95,10 @@ scripts/       build (arquivo único) e execução de testes
 - Bibliotecas, embutidas e carregadas só ao exportar: **jszip** 3.10 (MIT) e **pdf-lib** 1.17 (MIT). Nada é enviado pela internet.
 - Toda área vem de voo (Fechamento do dia ou Registro de campo). Aplicado lançado sem voo em versões anteriores (v0.9.3–v1.1) continua contando na área, fora do ha/h.
 
+## Tempo efetivo da operação (v1.7.6)
+
+- No Diário, "Efetivo da operação" = tempo em que pelo menos um drone estava aplicando (drones trabalhando ao mesmo tempo contam uma vez: união dos intervalos de voo menos paradas). "Parado" = tempo dentro da janela dos voos em que nenhum drone aplicava. A soma por drone aparece à parte (é a base do ha/h por drone).
+
 ## Linha do tempo editável (v1.7.4)
 
 - Cada evento da linha do tempo do Diário é clicável, com o ícone ⚙ (Líder/Gestor; v1.7.5: o evento inteiro abre a edição e o painel mostra a dica; o mesmo evento nos dois drones aparece uma vez mesmo quando intercalado): muda a hora de início/fim do voo, a hora/motivo/observação da parada ou a hora da retomada, nos drones marcados (dá para corrigir só um drone). "Excluir parada" remove a parada inteira. Início e fim do voo não se excluem por aqui.

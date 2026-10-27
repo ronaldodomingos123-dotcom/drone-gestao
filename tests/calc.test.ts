@@ -1454,3 +1454,12 @@ test('fechamento: 2º turno no mesmo dia com o mesmo drone NÃO apaga o 1º turn
   assert.ok(recuperarVoos(ds, antes, perdidos, 7)!.includes('Nenhum'), 'não duplica ao recuperar de novo');
   assert.ok(ds.auditoria.some((a) => a.resumo.includes('Recuperados')));
 });
+
+import { duracaoUniao } from '../src/domain/diario';
+test('Diário: efetivo da operação não soma drones simultâneos (união dos intervalos)', () => {
+  // 2 drones, 15:50–23:20, ambos parados 15:50–18:30 e 20:30–23:20 → cada um 2h efetivo; juntos 2h (não 4h)
+  const ativo: [number, number][] = [[1110, 1230], [1110, 1230]];
+  assert.equal(duracaoUniao(ativo), 120);
+  assert.equal(duracaoUniao([[0, 60], [30, 90], [120, 150]]), 120, 'sobreposição parcial conta uma vez');
+  assert.equal(duracaoUniao([[950, 1400], [950, 1400]]) - duracaoUniao(ativo), 330, 'parado da operação = janela − efetivo = 5h30');
+});
