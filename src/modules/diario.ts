@@ -4,6 +4,8 @@
  */
 import { ultimo, formatarDuracao, intervaloDatas, produtividadeEfetiva, produtividadeOperacional, safeDiv } from '../domain/calc';
 import { datasComOperacao, editarObservacao, resumoDia, type FiltroDia } from '../domain/diario';
+import { editarEvento, excluirEvento } from '../domain/linhaTempo';
+import { MOTIVOS_PARADA, type MotivoParada } from '../domain/types';
 import { podeGravar } from '../data/nuvem';
 import { metaDiaria } from '../domain/metas';
 import { preverTermino } from '../domain/previsao';
@@ -21,6 +23,7 @@ import type { Relatorio } from '../domain/relatorios';
 
 const CHAVE = `${PREFIXO}diario`;
 let dia = '';
+let evAtuais: import('../domain/diario').EventoLinhaTempo[] = [];
 let obsAtuais: { aeronave: string; texto: string; opIds: string[] }[] = [];
 let filtro: FiltroDia = { turnoId: '', liderId: '', campanhaId: '' };
 
@@ -47,6 +50,8 @@ export function renderDiario(raiz: HTMLElement) {
     if ((e.target as HTMLElement).closest('[data-acao="imprimir"]')) window.print();
     const ex = (e.target as HTMLElement).closest('[data-exp]') as HTMLButtonElement | null;
     if (ex) void exportarRelatorio(relDiario(), ex.dataset.exp as 'csv' | 'xlsx' | 'pdf', ex);
+    const bev = (e.target as HTMLElement).closest('[data-ev-editar]') as HTMLElement | null;
+    if (bev) { editarEventoTela(host, evAtuais[Number(bev.dataset.evEditar)]); return; }
     const be = (e.target as HTMLElement).closest('[data-obs-editar],[data-obs-excluir]') as HTMLElement | null;
     if (be) { void acaoObservacao(host, be); return; }
     const bi = (e.target as HTMLElement).closest('[data-acao="imagem"]') as HTMLButtonElement | null;
@@ -67,7 +72,7 @@ export function renderDiario(raiz: HTMLElement) {
 function relDiario(): Relatorio {
   const { ds, idx } = estado;
   const r = resumoDia(ds, idx, dia, filtro);
-  obsAtuais = r.observacoes;
+  obsAtuais = r.observacoes; evAtuais = r.eventos;
   const meta = metaDiaria(ds.metas, { umDrone: false, umTurno: !!(filtro.turnoId || filtro.liderId) });
   const filtros = [filtro.campanhaId ? `Campanha: ${nome.campanha(filtro.campanhaId)}` : '', filtro.turnoId ? `Turno: ${nome.turno(filtro.turnoId)}` : '', filtro.liderId ? `Líder: ${nome.colaborador(filtro.liderId)}` : ''].filter(Boolean);
   const leitura = (l: LeituraClima | null) => (l ? `${l.hora} · ${l.temperaturaC ?? '—'} °C · UR ${l.umidadePct ?? '—'}% · vento ${l.ventoKmh ?? '—'} km/h` : '—');
@@ -102,7 +107,7 @@ function desenhar(host: HTMLElement) {
   try { localStorage.setItem(CHAVE, JSON.stringify({ dia, filtro })); } catch { /* opcional */ }
   const { ds, idx } = estado;
   const r = resumoDia(ds, idx, dia, filtro);
-  obsAtuais = r.observacoes;
+  obsAtuais = r.observacoes; evAtuais = r.eventos;
   const lim = ds.limites;
   const datas = datasComOperacao(ds, filtro);
   const iDia = datas.indexOf(dia);
@@ -192,7 +197,7 @@ function desenhar(host: HTMLElement) {
       </section>
       <section class="cartao">
         <header class="cartao-cab"><div><h2 class="dia-tit">${icone('historico', 16)} Linha do tempo</h2><p>Gerada das paradas registradas · abastecimentos omitidos</p></div></header>
-        <div class="dia-tempo">${r.eventos.map((ev) => `<div class="ev ev-${ev.tipo} ${ev.climatico ? 'ev-clima' : ''}"><span class="ev-ic">${icone(ev.tipo === 'inicio' ? 'dir' : ev.tipo === 'fim' ? 'ok' : ev.tipo === 'retomada' ? 'restaurar' : ev.tipo === 'impedida' ? 'alerta' : 'parada', 15)}</span><b>${esc(ev.hora)}</b><small>${esc(ev.aeronave)}</small><span class="ev-txt">${esc(ev.texto)}</span></div>`).join('')}</div>
+        <div class="dia-tempo">${r.eventos.map((ev, i) => `<div class="ev ev-${ev.tipo} ${ev.climatico ? 'ev-clima' : ''}">${podeGravar() && ev.tipo !== 'impedida' ? `<button class="btn-icone ev-editar" data-ev-editar="${i}" data-sem-exportar title="Editar ou excluir" aria-label="Editar ou excluir evento">${icone('config', 12)}</button>` : ''}<span class="ev-ic">${icone(ev.tipo === 'inicio' ? 'dir' : ev.tipo === 'fim' ? 'ok' : ev.tipo === 'retomada' ? 'restaurar' : ev.tipo === 'impedida' ? 'alerta' : 'parada', 15)}</span><b>${esc(ev.hora)}</b><small>${esc(ev.aeronave)}</small><span class="ev-txt">${esc(ev.texto)}</span></div>`).join('')}</div>
       </section>
     </div>`;
 
@@ -252,5 +257,40 @@ async function acaoObservacao(host: HTMLElement, b: HTMLElement) {
     const erro = alterar((ds) => editarObservacao(ds, o.opIds, o.texto, novo));
     if (erro) { (m.el.querySelector('[data-obs-msg]') as HTMLElement).innerHTML = aviso('critico', esc(erro)); return; }
     m.fechar(); toast('Observação salva.', 'ok'); desenhar(host);
+  });
+}
+
+const ROT_EV: Record<string, string> = { inicio: 'Início da aplicação', fim: 'Fim da aplicação', pausa: 'Parada', retomada: 'Retomada (fim da parada)' };
+/** Editar / excluir um evento da linha do tempo (horário do voo ou parada), nos drones marcados. */
+function editarEventoTela(host: HTMLElement, ev: import('../domain/diario').EventoLinhaTempo | undefined) {
+  if (!ev) return;
+  const ehParada = ev.tipo === 'pausa' || ev.tipo === 'retomada';
+  const p0 = ev.refs[0]?.paradaId ? estado.ds.paradas.find((x) => x.id === ev.refs[0].paradaId) : undefined;
+  const m = abrirModal(`Editar — ${ROT_EV[ev.tipo] ?? ev.tipo}`, `
+    <p class="nota">${esc(fmtData(dia))} · ${esc(ev.hora)} · ${esc(ev.texto)}</p>
+    <fieldset class="campo"><legend>Aplicar nos drones</legend>${ev.refs.map((r, i) => `<label class="chk"><input type="checkbox" data-ev-ref="${i}" checked> ${esc(r.aeronave)}</label>`).join('')}</fieldset>
+    <div class="form-grade">
+      <label class="campo"><span>${ev.tipo === 'retomada' ? 'Hora da retomada' : ev.tipo === 'pausa' ? 'Hora da parada' : ev.tipo === 'inicio' ? 'Hora de início' : 'Hora do fim'}</span><input type="time" data-ev-hora value="${esc(ev.hora)}"></label>
+      ${ev.tipo === 'pausa' ? `<label class="campo"><span>Motivo</span><select data-ev-motivo>${MOTIVOS_PARADA.map((x) => `<option ${x === p0?.motivo ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+      <label class="campo"><span>Observação da parada</span><input data-ev-obs value="${esc(p0?.observacoes ?? '')}"></label>` : ''}
+    </div>
+    <p class="nota">${ehParada ? 'Mudar o horário da parada ajusta o tempo efetivo do voo. <b>Excluir</b> remove a parada inteira (parada e retomada).' : 'Mudar o horário do voo ajusta a jornada e o tempo efetivo. Para apagar o voo, use Aplicações.'}</p>
+    <div data-ev-msg></div>`,
+  { rodapeHTML: `<button class="btn btn-sec" data-fechar>Cancelar</button>${ehParada ? '<button class="btn btn-perigo" data-ev-excluir>Excluir parada</button>' : ''}<button class="btn btn-pri" data-ev-ok>Salvar</button>` });
+  const refs = () => [...m.el.querySelectorAll<HTMLInputElement>('[data-ev-ref]:checked')].map((x) => ev.refs[Number(x.dataset.evRef)]);
+  const msg = (t: string) => { (m.el.querySelector('[data-ev-msg]') as HTMLElement).innerHTML = aviso('critico', esc(t)); };
+  m.el.querySelector('[data-ev-ok]')!.addEventListener('click', () => {
+    const hora = (m.el.querySelector('[data-ev-hora]') as HTMLInputElement).value;
+    const motivo = (m.el.querySelector('[data-ev-motivo]') as HTMLSelectElement | null)?.value as MotivoParada | undefined;
+    const obs = (m.el.querySelector('[data-ev-obs]') as HTMLInputElement | null)?.value;
+    const erro = alterar((ds) => editarEvento(ds, ev.tipo, refs(), { hora: hora !== ev.hora ? hora : undefined, motivo, observacoes: obs }));
+    if (erro) { msg(erro); return; }
+    m.fechar(); toast('Linha do tempo atualizada.', 'ok'); desenhar(host);
+  });
+  m.el.querySelector('[data-ev-excluir]')?.addEventListener('click', async () => {
+    if (!(await confirmar('Excluir parada', `Excluir a parada das ${ev.hora} (${ev.texto}) em ${refs().map((r) => r.aeronave).join(', ') || 'nenhum drone'}?`, 'Excluir'))) return;
+    const erro = alterar((ds) => excluirEvento(ds, ev.tipo, refs()));
+    if (erro) { msg(erro); return; }
+    m.fechar(); toast('Parada excluída.', 'ok'); desenhar(host);
   });
 }

@@ -95,6 +95,11 @@ scripts/       build (arquivo único) e execução de testes
 - Bibliotecas, embutidas e carregadas só ao exportar: **jszip** 3.10 (MIT) e **pdf-lib** 1.17 (MIT). Nada é enviado pela internet.
 - Toda área vem de voo (Fechamento do dia ou Registro de campo). Aplicado lançado sem voo em versões anteriores (v0.9.3–v1.1) continua contando na área, fora do ha/h.
 
+## Linha do tempo editável (v1.7.4)
+
+- Cada evento da linha do tempo do Diário tem o botão ⚙ (Líder/Gestor): muda a hora de início/fim do voo, a hora/motivo/observação da parada ou a hora da retomada, nos drones marcados (dá para corrigir só um drone). "Excluir parada" remove a parada inteira. Início e fim do voo não se excluem por aqui.
+- O tempo efetivo do voo é ajustado pela diferença (parada mais longa = menos efetivo), sem passar da jornada. Horários fora do voo são recusados. Tudo vai para a auditoria e, com a nuvem, sobe para a equipe.
+
 ## Correção: dois turnos no mesmo dia; recuperar voos; observações editáveis (v1.7.3)
 
 - **Correção importante:** gravar o fechamento de um turno substituía os voos já gravados na MESMA data para os MESMOS drones, mesmo de OUTRO turno (ex.: o 2º turno apagava o 1º com o mesmo drone). Agora só é substituído o fechamento do mesmo dia, mesmo turno e mesmos drones (regravar = corrigir); voos de outro turno são mantidos e a prévia avisa que o fechamento soma.

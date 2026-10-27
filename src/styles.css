@@ -1032,3 +1032,7 @@ b.nv-ok { color: #1f7a45; } b.nv-aviso { color: #8a5a00; } b.nv-erro { color: #a
 .dia-obs-acoes .btn-icone { width: 26px; height: 26px; color: var(--texto-3); }
 .dia-obs-acoes .btn-icone:hover { color: var(--texto); }
 #diario.exportando .dia-obs-acoes { display: none; }
+.dia-tempo .ev { position: relative; }
+.dia-tempo .ev-editar { position: absolute; top: -2px; right: 2px; width: 24px; height: 24px; color: var(--texto-3); opacity: .75; }
+.dia-tempo .ev-editar:hover { opacity: 1; color: var(--texto); }
+#diario.exportando .ev-editar { display: none; }

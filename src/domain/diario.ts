@@ -20,6 +20,8 @@ export interface EventoLinhaTempo {
   texto: string;
   aeronave: string;
   climatico: boolean;
+  /** de onde vem o evento (para editar/excluir): voo e, se for parada/retomada, a parada */
+  refs: { opId: string; paradaId?: string; aeronave: string }[];
 }
 
 export interface ResumoDia {
@@ -88,28 +90,28 @@ export function resumoDia(ds: Dataset, idx: Indices, data: string, f: FiltroDia)
     minParadoSoma += somaParadasMin(paradas);
     minTotalSoma += tot;
     if (op.status === 'impedida_clima') {
-      eventos.push({ minutoAbs: ini, hora: hhmm(ini), tipo: 'impedida', texto: `Operação impedida — ${paradas[0]?.motivo ?? 'clima'}`, aeronave: ac, climatico: true });
+      eventos.push({ minutoAbs: ini, hora: hhmm(ini), tipo: 'impedida', texto: `Operação impedida — ${paradas[0]?.motivo ?? 'clima'}`, aeronave: ac, climatico: true, refs: [{ opId: op.id, aeronave: ac }] });
       continue;
     }
-    eventos.push({ minutoAbs: ini, hora: hhmm(ini), tipo: 'inicio', texto: 'Início da aplicação', aeronave: ac, climatico: false });
+    eventos.push({ minutoAbs: ini, hora: hhmm(ini), tipo: 'inicio', texto: 'Início da aplicação', aeronave: ac, climatico: false, refs: [{ opId: op.id, aeronave: ac }] });
     for (const p of paradas) {
       // abastecimento/reabastecimento é rotina do voo: não polui a linha do tempo
       if (p.motivo === 'Abastecimento/reabastecimento') continue;
       const a = relativo(p.inicio);
       const climatico = MOTIVOS_CLIMATICOS.includes(p.motivo as MotivoParada);
-      eventos.push({ minutoAbs: a, hora: hhmm(a), tipo: 'pausa', texto: p.motivo + (p.observacoes ? ` — ${p.observacoes}` : ''), aeronave: ac, climatico });
+      eventos.push({ minutoAbs: a, hora: hhmm(a), tipo: 'pausa', texto: p.motivo + (p.observacoes ? ` — ${p.observacoes}` : ''), aeronave: ac, climatico, refs: [{ opId: op.id, paradaId: p.id, aeronave: ac }] });
       if (p.fim && duracaoParadaMin(p) !== null && relativo(p.fim) < fim) {
         const b = relativo(p.fim);
-        eventos.push({ minutoAbs: b, hora: hhmm(b), tipo: 'retomada', texto: climatico ? 'Condições restabelecidas' : 'Retomada da aplicação', aeronave: ac, climatico: false });
+        eventos.push({ minutoAbs: b, hora: hhmm(b), tipo: 'retomada', texto: climatico ? 'Condições restabelecidas' : 'Retomada da aplicação', aeronave: ac, climatico: false, refs: [{ opId: op.id, paradaId: p.id, aeronave: ac }] });
       }
     }
-    eventos.push({ minutoAbs: fim, hora: hhmm(fim), tipo: 'fim', texto: 'Fim da aplicação', aeronave: ac, climatico: false });
+    eventos.push({ minutoAbs: fim, hora: hhmm(fim), tipo: 'fim', texto: 'Fim da aplicação', aeronave: ac, climatico: false, refs: [{ opId: op.id, aeronave: ac }] });
   }
   eventos.sort((a, b) => a.minutoAbs - b.minutoAbs || a.aeronave.localeCompare(b.aeronave));
   // mesmo evento, mesma hora, em vários drones → um só item com os drones juntos
   for (let i = eventos.length - 1; i > 0; i--) {
     const a = eventos[i - 1], b = eventos[i];
-    if (a.minutoAbs === b.minutoAbs && a.tipo === b.tipo && a.texto === b.texto) { a.aeronave = `${a.aeronave}, ${b.aeronave}`; eventos.splice(i, 1); }
+    if (a.minutoAbs === b.minutoAbs && a.tipo === b.tipo && a.texto === b.texto) { a.aeronave = `${a.aeronave}, ${b.aeronave}`; a.refs = [...a.refs, ...b.refs]; eventos.splice(i, 1); }
   }
 
   // Fazendas
