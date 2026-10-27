@@ -6,7 +6,7 @@
  * meia-noite continua contando no dia de início).
  */
 import type { Indices } from './analytics';
-import { ultimo, aplicacoes, aplicadoPorItem, areaObstaculo, areaOperacao, areaPlanejadaOS, duracaoParadaMin, duracaoTotalMin, hhmmParaMin, isoLocalParaMin, quantidadeTotal, somaParadasMin } from './calc';
+import { minutosParadasRelogio, ultimo, aplicacoes, aplicadoPorItem, areaObstaculo, areaOperacao, areaPlanejadaOS, duracaoParadaMin, duracaoTotalMin, hhmmParaMin, isoLocalParaMin, quantidadeTotal, somaParadasMin } from './calc';
 import type { Dataset, LeituraClima, MotivoParada, Operacao, UnidadeDose } from './types';
 import { MOTIVOS_CLIMATICOS } from './types';
 import { registrar } from './base';
@@ -36,7 +36,7 @@ export interface ResumoDia {
   minEfetivoSoma: number; // soma entre drones (base do ha/h por drone)
   /** tempo em que pelo menos um drone estava aplicando (drones simultâneos contam uma vez) */
   minEfetivoOperacao: number;
-  /** tempo dentro da janela dos voos em que nenhum drone estava aplicando */
+  /** tempo parado no relógio: união das paradas registradas (drones parados ao mesmo tempo contam uma vez) */
   minParadoOperacao: number;
   minParadoSoma: number;
   minTotalSoma: number;
@@ -185,7 +185,7 @@ export function resumoDia(ds: Dataset, idx: Indices, data: string, f: FiltroDia)
     jornadaMin: inicioMin === null || fimMin === null ? 0 : fimMin - inicioMin,
     minEfetivoSoma, minParadoSoma, minTotalSoma,
     minEfetivoOperacao: duracaoUniao(ativos),
-    minParadoOperacao: Math.max(0, duracaoUniao(janelas) - duracaoUniao(ativos)),
+    minParadoOperacao: minutosParadasRelogio(ops.flatMap((o) => idx.paradasPorOp.get(o.id) ?? [])),
     fazendas, produtos, porAeronave: [...ma.values()].sort((a, b) => b.area - a.area),
     climaInicial, climaFinal,
     turnos: [...new Set(ops.map((o) => o.turnoId))],

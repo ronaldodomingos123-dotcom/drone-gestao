@@ -6,10 +6,10 @@
 import { areaPorDia, areaPorSemana, criarIndices, filtrarLancamentos, filtrarOperacoes, ordensNoEscopo, temposOperacao, type Filtros, type Indices } from './analytics';
 import {
   aplicacoes, aplicadoPorItem, areaObstaculo, areaOperacao, areaPlanejadaOS, chaveItem, duracaoParadaMin, duracaoTotalMin,
-  percentualExecutado, produtividadeEfetiva, produtividadeOperacional, quantidadeTotal, round, safeDiv, somaParadasMin,
+  percentualExecutado, produtividadeEfetiva, produtividadeOperacional, quantidadeTotal, round, safeDiv, somaParadasMin, minutosParadasRelogio,
 } from './calc';
 import { metaPorDia, metaPorSemana } from './metas';
-import { MOTIVOS_CLIMATICOS, type Dataset, type MotivoParada, type Operacao } from './types';
+import { MOTIVOS_CLIMATICOS, type Dataset, type MotivoParada, type Operacao, type Parada } from './types';
 import { avaliarLeitura } from './validation';
 import { contextoClima } from './estacao';
 
@@ -274,14 +274,18 @@ function relParadas(c: Ctx): Relatorio {
     linhas: ps.map((p) => { const op = opPor.get(p.operacaoId)!; return [p.inicio.slice(0, 10), p.inicio.slice(11, 16), p.fim ? p.fim.slice(11, 16) : 'em aberto', duracaoParadaMin(p), p.motivo, MOTIVOS_CLIMATICOS.includes(p.motivo) ? 'Sim' : 'Não', n.aeronave(op.aeronaveId), n.fazendaDaOS(op.osId), p.observacoes ?? '']; }) };
   totalizar(sec);
   const totalMin = ops.reduce((s, o) => s + (duracaoTotalMin(o.horaInicio, o.horaFim) ?? 0), 0);
-  const mm = new Map<MotivoParada, { oc: number; min: number }>();
-  for (const p of ps) { const x = mm.get(p.motivo) ?? { oc: 0, min: 0 }; x.oc++; x.min += somaParadasMin([p]); mm.set(p.motivo, x); }
-  const secM: Secao = { titulo: 'Por motivo', colunas: [{ titulo: 'Motivo', tipo: 'texto' }, { titulo: 'Climática', tipo: 'texto' }, { titulo: 'Ocorrências', tipo: 'int', total: 'soma' }, { titulo: 'Tempo parado', tipo: 'min', total: 'soma' }, { titulo: '% do tempo total', tipo: 'pct' }, { titulo: 'Média por parada', tipo: 'min' }],
-    linhas: [...mm.entries()].sort((a, b) => b[1].min - a[1].min).map(([mo, x]) => [mo, MOTIVOS_CLIMATICOS.includes(mo) ? 'Sim' : 'Não', x.oc, x.min, safeDiv(x.min * 100, totalMin), safeDiv(x.min, x.oc)]) };
-  totalizar(secM); if (secM.totais) secM.totais[4] = safeDiv((secM.totais[3] as number) * 100, totalMin);
+  const mm = new Map<MotivoParada, { oc: number; min: number; ps: Parada[] }>();
+  for (const p of ps) { const x = mm.get(p.motivo) ?? { oc: 0, min: 0, ps: [] }; x.oc++; x.min += somaParadasMin([p]); x.ps.push(p); mm.set(p.motivo, x); }
+  // tempo no relógio: drones parados ao mesmo tempo contam uma vez; "somando os drones" = horas-drone (base da %)
+  const secM: Secao = { titulo: 'Por motivo', colunas: [{ titulo: 'Motivo', tipo: 'texto' }, { titulo: 'Climática', tipo: 'texto' }, { titulo: 'Ocorrências', tipo: 'int', total: 'soma' }, { titulo: 'Tempo parado (relógio)', tipo: 'min' }, { titulo: 'Somando os drones', tipo: 'min', total: 'soma' }, { titulo: '% do tempo dos voos', tipo: 'pct' }, { titulo: 'Média por parada', tipo: 'min' }],
+    linhas: [...mm.entries()].map(([mo, x]) => ({ mo, x, rel: minutosParadasRelogio(x.ps) })).sort((a, b) => b.rel - a.rel).map(({ mo, x, rel }) => [mo, MOTIVOS_CLIMATICOS.includes(mo) ? 'Sim' : 'Não', x.oc, rel, x.min, safeDiv(x.min * 100, totalMin), safeDiv(x.min, x.oc)]) };
+  totalizar(secM);
+  const relTotal = minutosParadasRelogio(ps);
+  if (secM.totais) { secM.totais[3] = relTotal; secM.totais[5] = safeDiv((secM.totais[4] as number) * 100, totalMin); }
   r.secoes.push(secM, sec);
-  const clim = [...mm.entries()].filter(([mo]) => MOTIVOS_CLIMATICOS.includes(mo)).reduce((s, [, x]) => s + x.min, 0);
-  r.indicadores = [{ rotulo: 'Paradas', valor: ps.length, tipo: 'int' }, { rotulo: 'Tempo parado', valor: secM.totais?.[3] ?? 0, tipo: 'min' }, { rotulo: '% do tempo total', valor: secM.totais?.[4] ?? null, tipo: 'pct' }, { rotulo: 'Por clima', valor: clim, tipo: 'min' }];
+  const clim = minutosParadasRelogio(ps.filter((p) => MOTIVOS_CLIMATICOS.includes(p.motivo)));
+  r.indicadores = [{ rotulo: 'Paradas', valor: ps.length, tipo: 'int' }, { rotulo: 'Tempo parado (relógio)', valor: relTotal, tipo: 'min' }, { rotulo: 'Somando os drones', valor: secM.totais?.[4] ?? 0, tipo: 'min' }, { rotulo: '% do tempo dos voos', valor: secM.totais?.[5] ?? null, tipo: 'pct' }, { rotulo: 'Por clima (relógio)', valor: clim, tipo: 'min' }];
+  r.notas = [...(r.notas ?? []), 'Tempo parado no relógio: paradas de drones diferentes no mesmo horário contam uma vez. "Somando os drones" soma a parada de cada drone (horas-drone) e é a base da % sobre o tempo dos voos.'];
   return r;
 }
 

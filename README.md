@@ -95,6 +95,11 @@ scripts/       build (arquivo único) e execução de testes
 - Bibliotecas, embutidas e carregadas só ao exportar: **jszip** 3.10 (MIT) e **pdf-lib** 1.17 (MIT). Nada é enviado pela internet.
 - Toda área vem de voo (Fechamento do dia ou Registro de campo). Aplicado lançado sem voo em versões anteriores (v0.9.3–v1.1) continua contando na área, fora do ha/h.
 
+## Paradas e tempos no relógio (v1.7.7)
+
+- Paradas, Dashboard (tempo efetivo, total, parado e "Motivos de parada") e Relatório de paradas passam a mostrar o tempo no RELÓGIO: paradas de drones diferentes no mesmo horário contam uma vez (ex.: "Problemas de equipe" 13:20–18:30 = 5h10, e não 7h50 somando os dois drones). A soma por drone (horas-drone) continua ao lado e é a base das porcentagens sobre o tempo dos voos e do ha/h por drone.
+- Quando um drone para e o outro segue aplicando, esse horário conta como efetivo (alguém aplicava) e também como parado (houve parada registrada).
+
 ## Tempo efetivo da operação (v1.7.6)
 
 - No Diário, "Efetivo da operação" = tempo em que pelo menos um drone estava aplicando (drones trabalhando ao mesmo tempo contam uma vez: união dos intervalos de voo menos paradas). "Parado" = tempo dentro da janela dos voos em que nenhum drone aplicava. A soma por drone aparece à parte (é a base do ha/h por drone).

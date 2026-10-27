@@ -240,3 +240,17 @@ export function areaProgramadaEfetiva(os: Pick<OrdemServico, 'id' | 'itens' | 'c
   const a = os.itens.reduce((s, i) => s + (aplicado.get(chaveItem(os.id, i.talhaoId)) ?? 0), 0);
   return Math.min(plan, a);
 }
+
+/**
+ * Tempo de parada no RELÓGIO: paradas que se sobrepõem (ex.: os dois drones parados ao mesmo tempo) contam
+ * uma vez. Paradas sem horário de término não entram.
+ */
+export function minutosParadasRelogio(ps: Pick<Parada, 'inicio' | 'fim'>[]): number {
+  const iv = ps.map((p) => [isoLocalParaMin(p.inicio), p.fim ? isoLocalParaMin(p.fim) : null] as const)
+    .filter((x): x is readonly [number, number] => x[0] !== null && x[1] !== null && x[1] > x[0])
+    .map(([a, b]) => [a, b] as [number, number]).sort((x, y) => x[0] - y[0]);
+  let tot = 0, ini = -Infinity, fim = -Infinity;
+  for (const [a, b] of iv) { if (a > fim) { if (fim > ini) tot += fim - ini; ini = a; fim = b; } else fim = Math.max(fim, b); }
+  if (fim > ini) tot += fim - ini;
+  return Math.round(tot);
+}

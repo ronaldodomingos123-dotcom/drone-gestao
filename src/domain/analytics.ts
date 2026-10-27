@@ -5,7 +5,7 @@
  */
 import {
   alertasExcesso, aplicacoes, aplicadoPorItem, areaObstaculo, areaOperacao, areaPlanejadaOS, duracaoTotalMin, inicioSemana, intervaloDatas, percentualExecutado,
-  produtividadeEfetiva, produtividadeOperacional, safeDiv, somaParadasMin, type AlertaExcesso,
+  produtividadeEfetiva, produtividadeOperacional, safeDiv, somaParadasMin, minutosParadasRelogio, isoLocalParaMin, type AlertaExcesso,
 } from './calc';
 import type { LancamentoArea, Dataset, MotivoParada, Operacao, OrdemServico, Parada, StatusOperacao } from './types';
 import { MOTIVOS_CLIMATICOS } from './types';
@@ -235,12 +235,53 @@ export function desempenhoPor(ops: Operacao[], idx: Indices, campo: 'aeronaveId'
     .sort((a, b) => b.area - a.area);
 }
 
-export function minutosPorMotivo(ops: Operacao[], idx: Indices): { motivo: MotivoParada; minutos: number; ocorrencias: number; climatico: boolean }[] {
-  const m = new Map<MotivoParada, { minutos: number; ocorrencias: number }>();
+/**
+ * Tempo parado por motivo. `minutos` = no RELÓGIO (drones parados ao mesmo tempo contam uma vez);
+ * `minutosDrone` = soma de cada drone (horas-drone, base das porcentagens sobre o tempo dos voos).
+ */
+export function minutosPorMotivo(ops: Operacao[], idx: Indices): { motivo: MotivoParada; minutos: number; minutosDrone: number; ocorrencias: number; climatico: boolean }[] {
+  const m = new Map<MotivoParada, { ps: Parada[]; minutosDrone: number; ocorrencias: number }>();
   for (const op of ops) for (const p of idx.paradasPorOp.get(op.id) ?? []) {
-    const r = m.get(p.motivo) ?? { minutos: 0, ocorrencias: 0 };
-    r.minutos += somaParadasMin([p]); r.ocorrencias++;
+    const r = m.get(p.motivo) ?? { ps: [], minutosDrone: 0, ocorrencias: 0 };
+    r.minutosDrone += somaParadasMin([p]); r.ocorrencias++; r.ps.push(p);
     m.set(p.motivo, r);
   }
-  return [...m.entries()].map(([motivo, r]) => ({ motivo, ...r, climatico: MOTIVOS_CLIMATICOS.includes(motivo) })).sort((a, b) => b.minutos - a.minutos);
+  return [...m.entries()].map(([motivo, r]) => ({ motivo, minutos: minutosParadasRelogio(r.ps), minutosDrone: r.minutosDrone, ocorrencias: r.ocorrencias, climatico: MOTIVOS_CLIMATICOS.includes(motivo) })).sort((a, b) => b.minutos - a.minutos);
+}
+
+/** Tempo parado no relógio de todas as paradas dos voos (qualquer motivo). */
+export function minutosParadoRelogio(ops: Operacao[], idx: Indices, filtro?: (p: Parada) => boolean): number {
+  return minutosParadasRelogio(ops.flatMap((o) => idx.paradasPorOp.get(o.id) ?? []).filter((p) => !filtro || filtro(p)));
+}
+
+/**
+ * Tempos no RELÓGIO de um conjunto de voos (drones ao mesmo tempo contam uma vez):
+ *   total   = união das janelas dos voos (início → fim)
+ *   efetivo = união dos trechos em que algum drone estava aplicando (janela − paradas)
+ *   parado  = união das paradas registradas (algum drone parado)
+ */
+export function temposRelogio(ops: Operacao[], idx: Indices): { total: number; efetivo: number; parado: number } {
+  const janelas: [number, number][] = [], ativos: [number, number][] = [];
+  const ps: Parada[] = [];
+  for (const op of ops) {
+    const ini = isoLocalParaMin(`${op.data}T${(op.horaInicio || '00:00').padStart(5, '0')}`);
+    const tot = duracaoTotalMin(op.horaInicio, op.horaFim);
+    if (ini === null || !tot) continue;
+    const fim = ini + tot;
+    janelas.push([ini, fim]);
+    const pp = idx.paradasPorOp.get(op.id) ?? [];
+    ps.push(...pp);
+    let cur = ini;
+    const cortes = pp.map((p) => [Math.max(ini, isoLocalParaMin(p.inicio) ?? ini), Math.min(fim, p.fim ? (isoLocalParaMin(p.fim) ?? fim) : fim)] as [number, number]).filter(([a, b]) => b > a).sort((a, b) => a[0] - b[0]);
+    for (const [a, b] of cortes) { if (a > cur) ativos.push([cur, a]); cur = Math.max(cur, b); }
+    if (fim > cur) ativos.push([cur, fim]);
+  }
+  return { total: uniao(janelas), efetivo: uniao(ativos), parado: minutosParadasRelogio(ps) };
+}
+function uniao(iv: [number, number][]): number {
+  const o = iv.filter(([a, b]) => b > a).sort((x, y) => x[0] - y[0]);
+  let tot = 0, ini = -Infinity, fim = -Infinity;
+  for (const [a, b] of o) { if (a > fim) { if (fim > ini) tot += fim - ini; ini = a; fim = b; } else fim = Math.max(fim, b); }
+  if (fim > ini) tot += fim - ini;
+  return Math.round(tot);
 }

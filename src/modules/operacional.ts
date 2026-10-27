@@ -1,6 +1,7 @@
-import { filtrarOperacoes, minutosPorMotivo, temposOperacao } from '../domain/analytics';
+import { filtrarOperacoes, minutosParadoRelogio, minutosPorMotivo, temposOperacao } from '../domain/analytics';
 import { duracaoParadaMin, formatarDuracao, safeDiv } from '../domain/calc';
 import type { LeituraClima, LimitesClima, Operacao, Parada } from '../domain/types';
+import { MOTIVOS_CLIMATICOS } from '../domain/types';
 import { avaliarLeitura } from '../domain/validation';
 import { droneTurnosDia, haPorTurnoDrone, META_PADRAO, metaDiaria, metaSemanal, validarMeta, type MetaOperacional } from '../domain/metas';
 import { PREFIXO } from '../data/repository';
@@ -24,21 +25,22 @@ export function renderParadas(raiz: HTMLElement) {
     const opPorId = new Map(ops.map((o) => [o.id, o]));
     const paradas = ds.paradas.filter((p) => opPorId.has(p.operacaoId));
     const motivos = minutosPorMotivo(ops, idx);
-    const totalParado = motivos.reduce((s, m) => s + m.minutos, 0);
-    const climatico = motivos.filter((m) => m.climatico).reduce((s, m) => s + m.minutos, 0);
+    const totalParado = minutosParadoRelogio(ops, idx);
+    const totalDrone = motivos.reduce((s, m) => s + m.minutosDrone, 0);
+    const climatico = minutosParadoRelogio(ops, idx, (p) => MOTIVOS_CLIMATICOS.includes(p.motivo));
     const minTotal = ops.reduce((s, o) => s + temposOperacao(o, idx).total, 0);
     const abertas = paradas.filter((p) => duracaoParadaMin(p) === null).length;
     corpo.innerHTML = `
       <div class="kpis kpis-4">
-        <div class="kpi"><div class="kpi-topo"><span class="kpi-rot">Tempo parado</span><span class="kpi-ico">${icone('parada', 17)}</span></div><div class="kpi-val">${esc(formatarDuracao(totalParado))}</div><div class="kpi-sub">${esc(fmtPct((safeDiv(totalParado, minTotal) ?? 0) * 100))} do tempo total de operação</div></div>
+        <div class="kpi"><div class="kpi-topo"><span class="kpi-rot">Tempo parado</span><span class="kpi-ico">${icone('parada', 17)}</span></div><div class="kpi-val">${esc(formatarDuracao(totalParado))}</div><div class="kpi-sub">no relógio (drones parados juntos contam uma vez)${totalDrone !== totalParado ? ` · ${esc(formatarDuracao(totalDrone))} somando os drones` : ''} · ${esc(fmtPct((safeDiv(totalDrone, minTotal) ?? 0) * 100))} do tempo dos voos</div></div>
         <div class="kpi"><div class="kpi-topo"><span class="kpi-rot">Paradas registradas</span><span class="kpi-ico">${icone('camadas', 17)}</span></div><div class="kpi-val">${paradas.length}</div><div class="kpi-sub">${abertas ? `${abertas} sem horário de término` : 'todas com início e fim'}</div></div>
         <div class="kpi"><div class="kpi-topo"><span class="kpi-rot">Por motivos climáticos</span><span class="kpi-ico">${icone('vento', 17)}</span></div><div class="kpi-val">${esc(formatarDuracao(climatico))}</div><div class="kpi-sub">${esc(fmtPct((safeDiv(climatico, totalParado) ?? 0) * 100))} do tempo parado</div></div>
         <div class="kpi"><div class="kpi-topo"><span class="kpi-rot">Principal motivo</span><span class="kpi-ico">${icone('alerta', 17)}</span></div><div class="kpi-val kpi-val-txt">${esc(motivos[0]?.motivo ?? '—')}</div><div class="kpi-sub">${motivos[0] ? esc(formatarDuracao(motivos[0].minutos)) : ''}</div></div>
       </div>
       ${aviso('info', 'Tempo parado ≠ tempo efetivo. As paradas não entram nas horas efetivas; entram apenas no tempo total (produtividade "com paradas").')}
-      <section class="cartao"><header class="cartao-cab"><div><h2>Tempo parado por motivo</h2><p>Horas no período · ordenado do maior para o menor</p></div></header><div id="pa-graf"></div></section>
+      <section class="cartao"><header class="cartao-cab"><div><h2>Tempo parado por motivo</h2><p>Horas no relógio (drones parados ao mesmo tempo contam uma vez) · ordenado do maior para o menor</p></div></header><div id="pa-graf"></div></section>
       <section class="cartao"><header class="cartao-cab"><div><h2>Registro de paradas</h2><p>Clique para abrir a operação relacionada</p></div></header><div id="pa-tab"></div></section>`;
-    barrasH(corpo.querySelector('#pa-graf')!, motivos.map((m) => ({ rotulo: m.motivo, valores: [m.minutos / 60], extraTip: `<div class="tl">Ocorrências<b>${m.ocorrencias}</b></div>${m.climatico ? '<div class="tl">Motivo climático<b>sim</b></div>' : ''}` })),
+    barrasH(corpo.querySelector('#pa-graf')!, motivos.map((m) => ({ rotulo: m.motivo, valores: [m.minutos / 60], extraTip: `<div class="tl">Ocorrências<b>${m.ocorrencias}</b></div><div class="tl">Somando os drones<b>${esc(formatarDuracao(m.minutosDrone))}</b></div>${m.climatico ? '<div class="tl">Motivo climático<b>sim</b></div>' : ''}` })),
       [{ nome: 'Horas paradas', cor: CORES.operacional }], { unidade: 'h', casas: 1, larguraRotulo: 190 });
     tabela<Parada>(corpo.querySelector('#pa-tab') as HTMLElement, paradas, [
       { id: 'ini', titulo: 'Início', valor: (p) => p.inicio, render: (p) => esc(fmtDataHora(p.inicio)) },

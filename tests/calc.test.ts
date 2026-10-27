@@ -781,7 +781,8 @@ test('relatórios: números iguais aos do painel (mesmas regras) e cabeçalho ob
   const ev = gerarRelatorio(ds, 'evolucao', f, 'Fulano', agora);
   assert.ok(Math.abs((ev.secoes[0].totais![2] as number) - ind.areaAcumulada) < 1e-6, 'acumulado final = acumulado do painel');
   const pa = gerarRelatorio(ds, 'paradas', f, 'Fulano', agora);
-  assert.equal(pa.secoes[0].totais![3], ind.minParado, 'tempo parado igual ao painel');
+  assert.equal(pa.secoes[0].totais![4], ind.minParado, 'tempo parado somando os drones igual ao painel');
+  assert.ok((pa.secoes[0].totais![3] as number) <= (pa.secoes[0].totais![4] as number), 'no relógio nunca passa da soma dos drones');
   const fz = gerarRelatorio(ds, 'fazenda', f, 'Fulano', agora);
   assert.ok(Math.abs((fz.secoes[0].totais![3] as number) - ind.areaPlanejada) < 1e-6 && Math.abs((fz.secoes[0].totais![4] as number) - ind.areaAcumulada) < 1e-6);
   const cl = gerarRelatorio(ds, 'clima', f, 'Fulano', agora);
@@ -1462,4 +1463,17 @@ test('Diário: efetivo da operação não soma drones simultâneos (união dos i
   assert.equal(duracaoUniao(ativo), 120);
   assert.equal(duracaoUniao([[0, 60], [30, 90], [120, 150]]), 120, 'sobreposição parcial conta uma vez');
   assert.equal(duracaoUniao([[950, 1400], [950, 1400]]) - duracaoUniao(ativo), 330, 'parado da operação = janela − efetivo = 5h30');
+});
+
+import { minutosParadasRelogio, somaParadasMin as somaPar } from '../src/domain/calc';
+test('paradas no relógio: "Problemas de equipe" 13:20–18:30 com os dois drones parados juntos dá 5h10 (não 7h50)', () => {
+  const ps = [
+    { inicio: '2026-10-26T13:20', fim: '2026-10-26T15:50' }, // DR-02, 1º turno
+    { inicio: '2026-10-26T15:50', fim: '2026-10-26T18:30' }, // DR-01, 2º turno
+    { inicio: '2026-10-26T15:50', fim: '2026-10-26T18:30' }, // DR-02, 2º turno (ao mesmo tempo)
+  ];
+  assert.equal(minutosParadasRelogio(ps), 310, '5h10 no relógio');
+  assert.equal(somaPar(ps as never), 470, '7h50 somando os drones');
+  assert.equal(minutosParadasRelogio([{ inicio: '2026-10-26T23:30', fim: '2026-10-27T00:30' }, { inicio: '2026-10-27T00:00', fim: '2026-10-27T01:00' }]), 90, 'atravessa a meia-noite e sobrepõe em parte');
+  assert.equal(minutosParadasRelogio([{ inicio: '2026-10-26T10:00', fim: null }]), 0, 'parada sem término não entra');
 });
