@@ -48,7 +48,7 @@ with sync_playwright() as p:
     ok('excluir remove dos dois voos', all(not o['observacoesOperador'] for o in d['operacoes']) and 'Sem observações digitadas' in pg.locator('#diario').inner_text())
     ok('auditoria registra edição e exclusão', sum(1 for a in d['auditoria'] if 'Observação' in a['resumo']) == 2)
     # ---- linha do tempo: editar / excluir
-    def ev_btn(tipo, n=0): return pg.locator(f'.dia-tempo .ev-{tipo} [data-ev-editar]').nth(n)
+    def ev_btn(tipo, n=0): return pg.locator(f'.dia-tempo .ev-{tipo}[data-ev-editar]').nth(n)
     ev_btn('pausa').click(); pg.wait_for_selector('.modal [data-ev-hora]')
     pg.fill('.modal [data-ev-hora]', '20:00'); pg.click('.modal [data-ev-ok]'); pg.wait_for_timeout(300)
     d = ds()
@@ -59,7 +59,7 @@ with sync_playwright() as p:
     pg.uncheck('.modal [data-ev-ref="1"]'); pg.fill('.modal [data-ev-hora]', '19:00'); pg.select_option('.modal [data-ev-motivo]', 'Chuva'); pg.click('.modal [data-ev-ok]'); pg.wait_for_timeout(300)
     d = ds(); p1 = [x for x in d['paradas'] if x['operacaoId'] == 'op1'][0]; p2 = [x for x in d['paradas'] if x['operacaoId'] == 'op2'][0]
     ok('desmarcar um drone: só o DR-01 muda (19:00, Chuva); linha do tempo separa os eventos', p1['inicio'].endswith('T19:00') and p1['motivo'] == 'Chuva' and p2['inicio'].endswith('T20:00') and pg.locator('.dia-tempo .ev-pausa').count() == 2)
-    pg.locator('.dia-tempo .ev-pausa [data-ev-editar]').nth(1).click(); pg.wait_for_selector('.modal [data-ev-excluir]')
+    pg.locator('.dia-tempo .ev-pausa[data-ev-editar]').nth(1).click(); pg.wait_for_selector('.modal [data-ev-excluir]')
     pg.click('.modal [data-ev-excluir]'); pg.locator('[data-ok]').last.click(); pg.wait_for_timeout(300)
     d = ds()
     ok('excluir a parada do DR-02: parada some e o efetivo volta (+60 min)', not any(x['operacaoId'] == 'op2' for x in d['paradas']) and [o for o in d['operacoes'] if o['id'] == 'op2'][0]['tempoEfetivoMin'] == 150)
@@ -68,6 +68,15 @@ with sync_playwright() as p:
     ev_btn('inicio').click(); pg.wait_for_selector('.modal [data-ev-hora]')
     ok('início/fim do voo não têm botão de excluir', pg.locator('.modal [data-ev-excluir]').count() == 0); pg.locator('.modal [data-fechar]').first.click()
     ok('auditoria registra as edições da linha do tempo', sum(1 for a in ds()['auditoria'] if 'Linha do tempo' in a['resumo'] or 'Parada excluída' in a['resumo']) == 4)
+    # eventos intercalados (início e parada às 15:50 nos dois drones) também se juntam
+    pg.evaluate("""() => { const k='dap-proto-v1:dataset'; const d=JSON.parse(localStorage.getItem(k));
+      d.paradas.push({ id: 'pe1', operacaoId: 'op1', motivo: 'Problemas de equipe', inicio: '2026-10-26T15:50', fim: '2026-10-26T16:30', responsavel: '' }, { id: 'pe2', operacaoId: 'op2', motivo: 'Problemas de equipe', inicio: '2026-10-26T15:50', fim: '2026-10-26T16:30', responsavel: '' });
+      localStorage.setItem(k, JSON.stringify(d)); }""")
+    pg.goto('about:blank'); pg.goto(URL + '#/relatorios/diario'); pg.wait_for_selector('.dia-tempo')
+    ini = pg.locator('.dia-tempo .ev-inicio'); pe = pg.locator('.dia-tempo .ev-pausa', has_text='Problemas de equipe')
+    ok('15:50: um "Início" e uma "Problemas de equipe" com os dois drones (antes saíam repetidos)', ini.count() == 1 and pe.count() == 1 and 'DR-01, T70-P DR-02' in pe.inner_text() and 'DR-01, T70-P DR-02' in ini.inner_text())
+    ok('ordem no mesmo horário: início antes da parada', pg.evaluate("[...document.querySelectorAll('.dia-tempo .ev')].findIndex(e => e.classList.contains('ev-inicio')) < [...document.querySelectorAll('.dia-tempo .ev')].findIndex(e => e.classList.contains('ev-pausa'))"))
+    ok('painel mostra a dica "toque num evento para editar"', 'toque num evento para editar' in pg.locator('#diario').inner_text())
     ok('sem erros de página', not erros)
     b.close()
 for r, n in res: print(r, n)

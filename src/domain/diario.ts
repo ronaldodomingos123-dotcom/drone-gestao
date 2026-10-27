@@ -107,12 +107,16 @@ export function resumoDia(ds: Dataset, idx: Indices, data: string, f: FiltroDia)
     }
     eventos.push({ minutoAbs: fim, hora: hhmm(fim), tipo: 'fim', texto: 'Fim da aplicação', aeronave: ac, climatico: false, refs: [{ opId: op.id, aeronave: ac }] });
   }
-  eventos.sort((a, b) => a.minutoAbs - b.minutoAbs || a.aeronave.localeCompare(b.aeronave));
-  // mesmo evento, mesma hora, em vários drones → um só item com os drones juntos
-  for (let i = eventos.length - 1; i > 0; i--) {
-    const a = eventos[i - 1], b = eventos[i];
-    if (a.minutoAbs === b.minutoAbs && a.tipo === b.tipo && a.texto === b.texto) { a.aeronave = `${a.aeronave}, ${b.aeronave}`; a.refs = [...a.refs, ...b.refs]; eventos.splice(i, 1); }
+  // mesmo evento, mesma hora, em vários drones → um só item com os drones juntos (mesmo que intercalados)
+  const ORDEM_EV: Record<string, number> = { inicio: 0, impedida: 0, pausa: 1, retomada: 2, fim: 3 };
+  const juntos = new Map<string, EventoLinhaTempo>();
+  for (const ev of eventos) {
+    const k = `${ev.minutoAbs}|${ev.tipo}|${ev.texto}`;
+    const j = juntos.get(k);
+    if (j) { j.aeronave = `${j.aeronave}, ${ev.aeronave}`; j.refs = [...j.refs, ...ev.refs]; } else juntos.set(k, { ...ev, refs: [...ev.refs] });
   }
+  eventos.length = 0;
+  eventos.push(...[...juntos.values()].sort((a, b) => a.minutoAbs - b.minutoAbs || ORDEM_EV[a.tipo] - ORDEM_EV[b.tipo] || a.aeronave.localeCompare(b.aeronave)));
 
   // Fazendas
   const mf = new Map<string, { fazendaId: string; area: number; talhoes: Set<string>; os: Set<string> }>();

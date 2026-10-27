@@ -97,7 +97,7 @@ scripts/       build (arquivo único) e execução de testes
 
 ## Linha do tempo editável (v1.7.4)
 
-- Cada evento da linha do tempo do Diário tem o botão ⚙ (Líder/Gestor): muda a hora de início/fim do voo, a hora/motivo/observação da parada ou a hora da retomada, nos drones marcados (dá para corrigir só um drone). "Excluir parada" remove a parada inteira. Início e fim do voo não se excluem por aqui.
+- Cada evento da linha do tempo do Diário é clicável, com o ícone ⚙ (Líder/Gestor; v1.7.5: o evento inteiro abre a edição e o painel mostra a dica; o mesmo evento nos dois drones aparece uma vez mesmo quando intercalado): muda a hora de início/fim do voo, a hora/motivo/observação da parada ou a hora da retomada, nos drones marcados (dá para corrigir só um drone). "Excluir parada" remove a parada inteira. Início e fim do voo não se excluem por aqui.
 - O tempo efetivo do voo é ajustado pela diferença (parada mais longa = menos efetivo), sem passar da jornada. Horários fora do voo são recusados. Tudo vai para a auditoria e, com a nuvem, sobe para a equipe.
 
 ## Correção: dois turnos no mesmo dia; recuperar voos; observações editáveis (v1.7.3)
