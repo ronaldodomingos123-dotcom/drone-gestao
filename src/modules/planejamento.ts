@@ -60,6 +60,7 @@ function cartao(p: PlanoCampanha) {
 }
 
 const COR_DIA: Record<string, string> = { aplicacao: 'dia-apl', parado: 'dia-par', sem_registro: 'dia-sem' };
+const MOTIVO_CURTO: Record<string, string> = { 'Vento acima do limite': 'Vento', 'Umidade abaixo do limite': 'Umidade', 'Falha de equipamento': 'Equipamento', 'Falta de insumos': 'Insumos', 'Problemas de equipe': 'Equipe' };
 /** Contagem de dias + faixa com um quadrado por dia (aplicação / parado / sem registro). */
 export function blocoDias(d: ResumoDias | null, titulo = 'Dias da campanha'): string {
   if (!d || !d.corridos) return '';
@@ -69,7 +70,8 @@ export function blocoDias(d: ResumoDias | null, titulo = 'Dias da campanha'): st
     <div class="dias-tit">${esc(titulo)} <small>${esc(fmtData(d.de))} a ${esc(fmtData(d.ate))}</small></div>
     <div class="chips-info"><span>Corridos <b>${d.corridos}</b></span><span>Com aplicação <b>${d.comAplicacao}</b>${d.pctEfetivo !== null ? ` (${esc(fmtPct(d.pctEfetivo, 0))})` : ''}</span><span>Parados <b>${d.parados}</b>${d.parados ? ` (clima ${d.paradosClima})` : ''}</span><span>Sem registro <b>${d.semRegistro}</b></span><span>ha/dia com aplicação <b>${esc(fmtNum(d.haDiaEfetivo, 1))}</b></span><span>ha/dia corrido <b>${esc(fmtNum(d.haDiaCorrido, 1))}</b></span></div>
     ${motivos ? `<p class="nota">Motivos: ${motivos}</p>` : ''}
-    <div class="dias-faixa" role="img" aria-label="Dias: aplicação, parado, sem registro">${ultimos.map((x) => `<i class="${COR_DIA[x.tipo]}" title="${esc(fmtData(x.data))} · ${x.tipo === 'aplicacao' ? `${fmtNum(x.area, 2)} ha` : x.tipo === 'parado' ? esc(`${x.motivo ?? 'parado'}${x.observacao ? ` — ${x.observacao}` : ''}`) : 'sem registro'}"></i>`).join('')}</div>
+    ${d.dias.length <= 31 ? `<div class="dias-celulas">${d.dias.map((x) => `<div class="dia-cel ${COR_DIA[x.tipo]}" title="${esc(x.tipo === 'parado' && x.observacao ? x.observacao : '')}"><b>${esc(fmtData(x.data).slice(0, 5))}</b><small>${x.tipo === 'aplicacao' ? `${esc(fmtNum(x.area, 1))} ha` : x.tipo === 'parado' ? esc(MOTIVO_CURTO[x.motivo ?? ''] ?? x.motivo ?? 'parado') : x.data === hojeISO() ? 'hoje' : 'sem registro'}</small></div>`).join('')}</div>` : ''}
+    <div class="dias-faixa" ${d.dias.length <= 31 ? 'hidden' : ''} role="img" aria-label="Dias: aplicação, parado, sem registro">${ultimos.map((x) => `<i class="${COR_DIA[x.tipo]}" title="${esc(fmtData(x.data))} · ${x.tipo === 'aplicacao' ? `${fmtNum(x.area, 2)} ha` : x.tipo === 'parado' ? esc(`${x.motivo ?? 'parado'}${x.observacao ? ` — ${x.observacao}` : ''}`) : 'sem registro'}"></i>`).join('')}</div>
     <div class="dias-leg"><span><i class="dia-apl"></i>com aplicação</span><span><i class="dia-par"></i>parado (dia sem aplicação)</span><span><i class="dia-sem"></i>sem registro</span>${d.dias.length > ultimos.length ? `<span>últimos ${ultimos.length} dias</span>` : ''}</div>
   </div>`;
 }

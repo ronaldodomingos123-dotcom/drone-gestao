@@ -1039,3 +1039,13 @@ b.nv-ok { color: #1f7a45; } b.nv-aviso { color: #8a5a00; } b.nv-erro { color: #a
 .dia-dica { color: var(--verde-700, #1f7a45); font-weight: 600; }
 #diario.exportando .ev-editar, #diario.exportando .dia-dica { display: none; }
 #diario.exportando .dia-tempo.editavel .ev { background: none; }
+.dias-celulas { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; margin: 10px 0 6px; }
+.dia-cel { border-radius: 8px; padding: 7px 6px; text-align: center; font-size: 12px; }
+.dia-cel b { display: block; font-size: 12.5px; }
+.dia-cel small { display: block; margin-top: 2px; font-size: 11.5px; }
+.dia-cel.dia-apl { background: #e3f4ea; color: #1f6b3f; }
+.dia-cel.dia-par { background: #fdeedd; color: #8a4b00; }
+.dia-cel.dia-sem { background: #eef1f5; color: #6b778a; }
+.g-dia-mot { font-size: 11.5px; font-weight: 700; }
+.g-dia-sem { font-size: 11px; }
+.img-exp .g-dia-mot, .img-exp .g-dia-sem { font-size: 13px !important; }

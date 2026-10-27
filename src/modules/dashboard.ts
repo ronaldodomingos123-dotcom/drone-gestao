@@ -11,7 +11,7 @@ import { hojeISO, toast } from '../ui/dom';
 import { exportarImagem } from '../ui/exportarImagem';
 import { descreverFiltros } from '../domain/relatorios';
 import { estado, nome } from '../state';
-import { barras, barrasH, CORES, legenda, linhas, rosca } from '../ui/charts';
+import { barras, barrasH, CORES, legenda, linhas, rosca, type MarcaDia } from '../ui/charts';
 import { aviso, barraFiltros, cabecalhoPagina, seloOperacao } from '../ui/components';
 import { abrirModal, esc, fmtData, fmtDataCurta, fmtHa, fmtNum, fmtPct } from '../ui/dom';
 import { icone } from '../ui/icons';
@@ -128,6 +128,15 @@ function desenhar(corpo: HTMLElement) {
   const metasDia = metaPorDia(ds.metas, f.de, f.ate, escopoMeta).map((x) => ((iniOp && x.data < iniOp) || (fimOp && x.data > fimOp) ? { ...x, meta: 0 } : x));
   const metaPeriodo = metasDia.reduce((a, x) => a + x.meta, 0);
   const pctMetaPeriodo = safeDiv(ind.areaPeriodo * 100, metaPeriodo);
+  // dias sem área dentro da janela da campanha: motivo (dia sem aplicação registrado) ou "sem registro"
+  const hojeD = hojeISO();
+  const resDias = iniOp ? resumoDias(ds, maxData(f.de, iniOp), fimOp && fimOp < f.ate ? fimOp : f.ate, campsJanela.length ? campsJanela.map((c) => c.id) : null) : null;
+  const marcaPorData = new Map<string, MarcaDia>();
+  for (const d of resDias?.dias ?? []) {
+    if (d.tipo === 'parado') marcaPorData.set(d.data, { tipo: 'parado', motivo: d.motivo, observacao: d.observacao });
+    else if (d.tipo === 'sem_registro' && d.data < hojeD) marcaPorData.set(d.data, { tipo: 'sem_registro' });
+  }
+  const temMarcas = marcaPorData.size > 0;
   const diasRitmoMeta = ind.areaRestante > 0 ? safeDiv(ind.areaRestante, mDiaMedia) : 0;
   const dataMeta = diasRitmoMeta === null ? null : addDias(f.ate, Math.ceil(diasRitmoMeta));
 
@@ -183,7 +192,7 @@ function desenhar(corpo: HTMLElement) {
     </div>
 
     <div class="grade-graficos">
-      ${cartaoGrafico('g-dia', 'Área aplicada × planejado por dia', `Meta: ${fmtNum(mDiaMedia, 0)} ha/dia (${rotEscopo})`, legenda([{ nome: 'Aplicado', cor: CORES.realizado }, { nome: 'Planejado (meta diária)', cor: CORES.planejado, tracejada: true }]), 'largo')}
+      ${cartaoGrafico('g-dia', 'Área aplicada × planejado por dia', `Meta: ${fmtNum(mDiaMedia, 0)} ha/dia (${rotEscopo})${temMarcas ? ' · motivo nos dias sem aplicação' : ''}`, legenda([{ nome: 'Aplicado', cor: CORES.realizado }, { nome: 'Planejado (meta diária)', cor: CORES.planejado, tracejada: true }, ...(temMarcas ? [{ nome: 'Sem aplicação (motivo)', cor: '#e98a2b' }, { nome: 'Sem registro', cor: '#c7ced9' }] : [])]), 'largo')}
       ${cartaoGrafico('g-motivos', 'Motivos de parada', 'Tempo parado por motivo no período · no relógio (drones parados juntos contam uma vez)')}
       ${cartaoGrafico('g-evolucao', 'Evolução da campanha e projeção', 'Acumulado real, projeção pelo ritmo real, ritmo planejado e total planejado', legenda([{ nome: 'Aplicada acumulada', cor: CORES.realizado }, { nome: 'Projeção (ritmo real)', cor: CORES.realizado, pontilhada: true }, { nome: 'Ritmo planejado (meta)', cor: CORES.operacional, tracejada: true }, { nome: 'Total planejado', cor: CORES.planejado, tracejada: true }]), 'largo')}
       ${cartaoGrafico('g-semana', 'Área aplicada × planejado por semana', `Meta: ${fmtNum(mDia * ds.metas.diasPorSemana, 0)} ha/semana · semanas parciais proporcionais`, legenda([{ nome: 'Aplicado', cor: CORES.realizado }, { nome: 'Planejado', cor: CORES.planejado, tracejada: true }]))}
@@ -212,6 +221,7 @@ function desenhar(corpo: HTMLElement) {
   barras(corpo.querySelector('#g-dia')!, dias.map((p) => ({ ...p, titulo: fmtData(p.rotulo) })), {
     cor: CORES.realizado, unidade: 'ha', rotuloX: (r, i, n) => (i % passo(n) === 0 ? fmtDataCurta(r) : null),
     meta: { nome: 'Planejado', cor: CORES.planejado, valores: metasDia.map((x) => x.meta) },
+    dias: temMarcas ? dias.map((p) => marcaPorData.get(p.rotulo) ?? null) : undefined,
   });
   // semanas: meta proporcional só aos dias dentro da janela da campanha
   const naJanela = (d: string) => !((iniOp && d < iniOp) || (fimOp && d > fimOp));

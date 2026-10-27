@@ -84,13 +84,28 @@ export interface PontoG { rotulo: string; valor: number; titulo?: string }
 
 /** Barras verticais de série única. */
 export interface MetaBarras { nome: string; cor: string; valores: number[]; detalhe?: (i: number) => string }
+/** Marcação de um dia sem área: parado (com motivo) ou sem registro. */
+export interface MarcaDia { tipo: 'parado' | 'sem_registro'; motivo?: string; observacao?: string }
+
+const COR_PARADO = '#e98a2b', COR_PARADO_TXT = '#a55a0c', COR_SEM = '#8a95a8';
+/** Ícone (SVG, centrado em 0,0) do motivo de um dia parado. */
+function iconeMotivo(motivo = ''): string {
+  const m = motivo.toLowerCase(), st = `fill="none" stroke="${COR_PARADO_TXT}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"`;
+  if (m.includes('chuva')) return `<path d="M-7 2a5 5 0 0 1 1-9 6 6 0 0 1 11 1 4 4 0 0 1 1 8z" ${st}/><path d="M-4 5l-1 3M0 5l-1 3M4 5l-1 3" ${st}/>`;
+  if (m.includes('vento')) return `<path d="M-8-4h10a3 3 0 1 0-3-3M-8 1h13a3 3 0 1 1-3 3M-8 6h7" ${st}/>`;
+  if (m.includes('umidade') || m.includes('orvalho')) return `<path d="M0-8C3-4 6-1 6 2a6 6 0 0 1-12 0c0-3 3-6 6-10z" ${st}/>`;
+  if (m.includes('manut') || m.includes('falha') || m.includes('equip')) return `<path d="M5-7a4 4 0 0 0-5 5L-6 4a2 2 0 0 0 3 3l6-6a4 4 0 0 0 5-5l-3 3-3-1-1-3z" ${st}/>`;
+  return `<path d="M-3-6v12M3-6v12" ${st}/>`;
+}
+const curto = (m = '') => ({ 'Vento acima do limite': 'Vento', 'Umidade abaixo do limite': 'Umidade', 'Falha de equipamento': 'Equipamento', 'Falta de insumos': 'Insumos', 'Problemas de equipe': 'Equipe' } as Record<string, string>)[m] ?? m.split(' ')[0];
 
 /** Barras verticais de série única, com linha de meta (planejado) opcional em degraus tracejados. */
-export function barras(host: HTMLElement, pontos: PontoG[], o: { cor: string; unidade: string; rotuloX: (r: string, i: number, n: number) => string | null; altura?: number; casas?: number; meta?: MetaBarras }) {
-  const H = o.altura ?? 240;
+export function barras(host: HTMLElement, pontos: PontoG[], o: { cor: string; unidade: string; rotuloX: (r: string, i: number, n: number) => string | null; altura?: number; casas?: number; meta?: MetaBarras; dias?: (MarcaDia | null)[] }) {
+  const temDias = !!o.dias?.some(Boolean);
+  const H = (o.altura ?? 240) + (temDias ? 18 : 0);
   const casas = o.casas ?? 1;
   montar(host, (W) => {
-    const m = { l: 46, r: 10, t: 18, b: 30 };
+    const m = { l: 46, r: 10, t: 18, b: temDias ? 48 : 30 };
     const pw = W - m.l - m.r, ph = H - m.t - m.b;
     const max = Math.max(0, ...pontos.map((p) => p.valor));
     const ticks = ticksBonitos(Math.max(max, ...(o.meta?.valores ?? [0])));
@@ -101,17 +116,42 @@ export function barras(host: HTMLElement, pontos: PontoG[], o: { cor: string; un
     let s = `<svg width="${W}" height="${H}" role="img" aria-label="Gráfico de barras">`;
     for (const t of ticks) s += `<line class="g-grade" x1="${m.l}" x2="${W - m.r}" y1="${y(t)}" y2="${y(t)}"/><text class="g-eixo" x="${m.l - 8}" y="${y(t) + 4}" text-anchor="end">${fmtNum(t, 0)}</text>`;
     const imax = pontos.reduce((bi, p, i) => (p.valor > pontos[bi].valor ? i : bi), 0);
+    // poucos dias: valor em todas as barras e motivo escrito; muitos dias: só o maior valor e só o ícone
+    const detalhado = pontos.length <= 31 && band >= 26;
+    const rotuloLargo = band >= 52;
     pontos.forEach((p, i) => {
       const cx = m.l + band * i + band / 2;
       const h = (p.valor / top) * ph;
+      const dm = o.dias?.[i];
+      if (dm && p.valor <= 0.005) {
+        if (dm.tipo === 'parado') {
+          s += `<rect x="${m.l + band * i + band * 0.12}" y="${m.t}" width="${band * 0.76}" height="${ph}" rx="6" fill="${COR_PARADO}" opacity=".08" pointer-events="none"/>`;
+          const r = Math.min(14, Math.max(8, band * 0.3));
+          s += `<g transform="translate(${cx},${m.t + ph - r - 4}) scale(${r / 14})" pointer-events="none"><circle r="14" fill="#fdeedd" stroke="${COR_PARADO}"/>${iconeMotivo(dm.motivo)}</g>`;
+          if (detalhado) {
+            const txt = rotuloLargo ? curto(dm.motivo) : curto(dm.motivo).slice(0, 5);
+            // coluna estreita (celular): diminui a letra para os motivos vizinhos não se encostarem
+            const fs = rotuloLargo ? 0 : Math.max(8, Math.min(12, Math.floor((band - 5) / (txt.length * 0.6))));
+            s += `<text class="g-dia-mot" x="${cx}" y="${H - 6}" text-anchor="middle" fill="${COR_PARADO_TXT}"${fs ? ` style="font-size:${fs}px"` : ''}>${esc(txt)}</text>`;
+          }
+        } else {
+          s += `<g transform="translate(${cx},${m.t + ph - 11})" pointer-events="none"><circle r="8" fill="#eef1f5" stroke="#c7ced9"/><text y="4" text-anchor="middle" fill="${COR_SEM}" font-size="11" font-weight="700">?</text></g>`;
+          if (detalhado && rotuloLargo) s += `<text class="g-dia-sem" x="${cx}" y="${H - 6}" text-anchor="middle" fill="${COR_SEM}">sem registro</text>`;
+        }
+      }
       s += `<path class="g-marca" data-g="b${i}" d="${barraV(cx - bw / 2, m.t + ph - h, bw, h)}" fill="${o.cor}"/>`;
+      if (temDias && detalhado && p.valor > 0.005 && i !== imax) s += `<text class="g-rotulo g-rotulo-s" x="${cx}" y="${y(p.valor) - 6}" text-anchor="middle">${fmtNum(p.valor, p.valor < 100 ? 1 : 0)}</text>`;
       const rx = o.rotuloX(p.rotulo, i, pontos.length);
-      if (rx) s += `<text class="g-eixo" x="${cx}" y="${H - 10}" text-anchor="middle">${esc(rx)}</text>`;
+      if (rx) s += `<text class="g-eixo" x="${cx}" y="${H - (temDias ? 26 : 10)}" text-anchor="middle">${esc(rx)}</text>`;
       const mt = o.meta?.valores[i];
       const tipMeta = o.meta && mt !== undefined
         ? `${tipLinha(o.meta.cor, o.meta.nome, `${fmtNum(mt, casas)} ${o.unidade}`)}<div class="tl">Atingido<b>${mt > 0 ? `${fmtNum((p.valor / mt) * 100, 0)}%` : '—'}</b></div>${o.meta.detalhe ? o.meta.detalhe(i) : ''}`
         : '';
-      s += `<rect class="g-alvo" x="${m.l + band * i}" y="${m.t}" width="${band}" height="${ph}" data-grupo="b${i}" data-tip="${esc(`<div class="tt">${esc(p.titulo ?? p.rotulo)}</div>${tipLinha(o.cor, 'Aplicado', `${fmtNum(p.valor, casas)} ${o.unidade}`)}${tipMeta}`)}"/>`;
+      const dmi = o.dias?.[i];
+      const tipDia = dmi && p.valor <= 0.005
+        ? (dmi.tipo === 'parado' ? `<div class="tl">Dia sem aplicação<b>${esc(dmi.motivo ?? '')}</b></div>${dmi.observacao ? `<div class="tl">Obs.<b>${esc(dmi.observacao)}</b></div>` : ''}` : '<div class="tl">Sem registro<b>nem aplicação nem dia parado</b></div>')
+        : '';
+      s += `<rect class="g-alvo" x="${m.l + band * i}" y="${m.t}" width="${band}" height="${ph}" data-grupo="b${i}" data-tip="${esc(`<div class="tt">${esc(p.titulo ?? p.rotulo)}</div>${tipDia}${tipLinha(o.cor, 'Aplicado', `${fmtNum(p.valor, casas)} ${o.unidade}`)}${tipMeta}`)}"/>`;
     });
     if (max > 0) {
       const cx = m.l + band * imax + band / 2;

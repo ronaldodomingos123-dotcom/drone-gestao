@@ -157,6 +157,13 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Motivo nos dias sem aplicação (v1.7.8)
+
+- **Gráfico "Área aplicada × planejado por dia"** (Dashboard): dia registrado como "Dia sem aplicação" ganha faixa laranja clara e ícone do motivo (chuva, vento, umidade/orvalho, manutenção/equipamento; outros = pausa). Dia passado sem nada lançado ganha "?" cinza ("sem registro"). Hoje ainda sem lançamento não é marcado. Só conta a janela da campanha filtrada.
+- Até 31 dias no período: motivo escrito embaixo da data e valor em todas as barras (no celular a letra do motivo diminui para caber). Período longo: só os ícones, para não poluir. O toque/hover mostra o motivo completo e a observação.
+- **Planejamento → Dias da campanha** (até 31 dias): uma célula por dia com a data e "x ha", o motivo ou "sem registro"/"hoje"; acima disso continua a faixa de quadrados.
+- Nada novo é gravado: usa os registros que já existem em "Dia sem aplicação".
+
 ## Checape do painel e imagem (v1.6.1)
 
 - **Janela da campanha:** quando o período filtrado começa antes do início da campanha, os dias anteriores não entram mais no ritmo da previsão, na meta do período, na meta semanal nem no "ritmo planejado" do gráfico de evolução. Antes, um período de 30 dias com campanha de 5 dias dava ritmo de 6,5 ha/dia e "atraso de 72 dias" falso. O Planejamento usa a mesma regra (últimos 14 dias ou desde o início da campanha).
