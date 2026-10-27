@@ -3,6 +3,7 @@
  * Somente leitura: o app de origem não é alterado. Cada dia fechado vira uma ficha do Fechamento do dia
  * (FichaDia), com as pendências que impedem gravar (fazenda sem OS, drone não cadastrado etc.).
  */
+import { textosDigitados } from './diario';
 import { normalizar } from './base';
 import { fichaVazia, type FichaDia } from './fechamentoDia';
 import { numeroBR } from './importacao';
@@ -122,7 +123,10 @@ export function fichaDoDiaAcomp(ds: Dataset, l: LeituraAcomp, dia: DiaAcomp, bas
   else { const sus = dataSuspeita(dia); if (sus) avisos.push(sus); }
   f.pausas = pausasDaTimeline(dia.timeline, dia.horaFim);
   const fimEv = dia.timeline.find((e) => normalizar(e.tipo) === 'fim' && e.texto);
-  f.observacoes = [f.observacoes, fimEv ? `Encerramento: ${fimEv.texto}` : '', ...dia.obs].filter(Boolean).join(' · ');
+  // observação que já está em OUTRO turno do mesmo dia (o app de acompanhamento mantém o texto ao trocar de turno) não é repetida
+  const jaEmOutroTurno = new Set(ds.operacoes.filter((o) => o.fechamentoDia === data && o.turnoId !== f.turnoId).flatMap((o) => textosDigitados(o.observacoesOperador)).flatMap((t) => [t, ...t.split(/\s+·\s+/).map((x) => x.trim())]));
+  const digitadas = [fimEv ? `Encerramento: ${fimEv.texto}` : '', ...dia.obs].filter((t) => t && !jaEmOutroTurno.has(t.replace(/^Encerramento:\s*/i, '').trim()));
+  f.observacoes = [f.observacoes, ...digitadas].filter(Boolean).join(' · ');
   f.clima = { tIni: dia.tempIni, urIni: dia.umidIni, vIni: dia.ventoIni, tFim: dia.tempFim, urFim: dia.umidFim, vFim: dia.ventoFim };
   // drones
   for (const [rot, area, re] of [['T70 D', dia.t70d, /t\s*70\s*-?\s*d\b/], ['T70 A', dia.t70a, /t\s*70\s*-?\s*a\b/]] as const) {

@@ -235,13 +235,21 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
+-- Conteúdo de uma versão anterior (só o Gestor) — usado para recuperar voos sem voltar a base inteira
+create or replace function public.ler_versao(p_id bigint) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if public.meu_papel() <> 'gestor' then raise exception 'sem_permissao' using errcode = '42501'; end if;
+  return (select jsonb_build_object('versao', h.versao, 'salvo_em', h.salvo_em, 'dados', h.dados) from public.dataset_historico h where h.id = p_id);
+end $$;
+
 -- Funções: ninguém executa por padrão; libera só o necessário.
 revoke execute on function public.meu_papel(), public.meu_perfil(), public._quem(), public._ao_criar_usuario(),
   public.salvar_dataset(jsonb, bigint, text), public.listar_historico(), public.restaurar_versao(bigint),
-  public.listar_usuarios(), public.definir_papel(text, text), public.remover_acesso(text) from public, anon, authenticated;
+  public.listar_usuarios(), public.definir_papel(text, text), public.remover_acesso(text), public.ler_versao(bigint) from public, anon, authenticated;
 grant execute on function public.meu_papel(), public.meu_perfil() to anon, authenticated;
 grant execute on function public.salvar_dataset(jsonb, bigint, text), public.listar_historico(), public.restaurar_versao(bigint),
-  public.listar_usuarios(), public.definir_papel(text, text), public.remover_acesso(text) to authenticated;
+  public.listar_usuarios(), public.definir_papel(text, text), public.remover_acesso(text), public.ler_versao(bigint) to authenticated;
 
 -- Conferência rápida (aparece no resultado do SQL Editor)
 select 'ok' as instalado, (select versao from public.dataset where id = 1) as versao_dados,

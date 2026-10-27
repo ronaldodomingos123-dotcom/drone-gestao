@@ -2,7 +2,9 @@
  * Telas da nuvem: indicador no topo, faixa de situação, login/conta, usuários (Gestor), histórico de
  * versões, primeiro envio e teste de segurança.
  */
-import { estado, redesenhar } from '../state';
+import { alterar, estado, redesenhar } from '../state';
+import { recuperarVoos, voosAusentes } from '../domain/recuperar';
+import type { Dataset, Operacao } from '../domain/types';
 import {
   aoMudarNuvem, atualizarPerfil, definirModoLocal, ehGestor, enviar, enviarBaseInicial, metaNuvem, mostrarAtualizacao, nuvem, puxar,
   type Papel,
@@ -275,7 +277,9 @@ async function listarHistorico(host: HTMLElement) {
   try {
     const hs = await rpc<{ id: number; versao: number; salvo_em: string; salvo_por: string | null; tamanho_kb: number }[]>('listar_historico');
     el.innerHTML = hs.length ? `<div class="tabela-rolagem"><table class="tabela tabela-simples"><thead><tr><th>Versão</th><th>Gravada em</th><th>Por</th><th class="dir">Tamanho</th><th></th></tr></thead><tbody>
-      ${hs.map((h) => `<tr><td>${h.versao}</td><td>${esc(hora(h.salvo_em))}</td><td>${esc(h.salvo_por ?? '')}</td><td class="dir">${h.tamanho_kb} KB</td><td>${nuvem.papel === 'gestor' ? `<button class="btn btn-sec btn-peq" data-np-rest="${h.id}" data-v="${h.versao}">Voltar a esta</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="nota">Ainda não há versões anteriores.</p>';
+      ${hs.map((h) => `<tr><td>${h.versao}</td><td>${esc(hora(h.salvo_em))}</td><td>${esc(h.salvo_por ?? '')}</td><td class="dir">${h.tamanho_kb} KB</td><td>${nuvem.papel === 'gestor' ? `<div class="np-acoes"><button class="btn btn-sec btn-peq" data-np-recup="${h.id}" data-v="${h.versao}">Recuperar voos</button><button class="btn btn-sec btn-peq" data-np-rest="${h.id}" data-v="${h.versao}">Voltar a esta</button></div>` : ''}</td></tr>`).join('')}</tbody></table></div>
+      <p class="nota"><b>Recuperar voos</b>: traz de volta só os voos daquela versão que não existem mais hoje (o resto fica como está). <b>Voltar a esta</b>: a base inteira volta àquela versão.</p>` : '<p class="nota">Ainda não há versões anteriores.</p>';
+    el.querySelectorAll<HTMLButtonElement>('[data-np-recup]').forEach((b) => b.addEventListener('click', () => void abrirRecuperar(Number(b.dataset.npRecup), Number(b.dataset.v))));
     el.querySelectorAll<HTMLButtonElement>('[data-np-rest]').forEach((b) => b.addEventListener('click', async () => {
       if (!(await confirmar('Voltar a uma versão anterior', `Os dados de TODA a equipe voltam à versão ${b.dataset.v}. A versão atual fica guardada no histórico (dá para desfazer).`, 'Voltar a esta versão'))) return;
       try { await rpc('restaurar_versao', { p_id: Number(b.dataset.npRest) }); await puxar(true, true); toast(`Dados voltaram à versão ${b.dataset.v}.`, 'ok'); await listarHistorico(host); } catch (e) { toast((e as Error).message, 'erro'); }
@@ -300,6 +304,7 @@ export async function testeSeguranca(host: HTMLElement) {
     { nome: 'Listar usuários pela função', deve: 'recusar', f: () => semLogin('/rest/v1/rpc/listar_usuarios', { method: 'POST', body: '{}' }) },
     { nome: 'Dar-se o papel de Gestor', deve: 'recusar', f: () => semLogin('/rest/v1/rpc/definir_papel', { method: 'POST', body: JSON.stringify({ p_email: 'teste@exemplo.com', p_papel: 'gestor' }) }) },
     { nome: 'Restaurar versão', deve: 'recusar', f: () => semLogin('/rest/v1/rpc/restaurar_versao', { method: 'POST', body: JSON.stringify({ p_id: 1 }) }) },
+    { nome: 'Ler versão anterior', deve: 'recusar', f: () => semLogin('/rest/v1/rpc/ler_versao', { method: 'POST', body: JSON.stringify({ p_id: 1 }) }) },
   ];
   const linhas: string[] = [];
   let ok = 0;
@@ -320,3 +325,37 @@ export async function testeSeguranca(host: HTMLElement) {
     <div class="tabela-rolagem"><table class="tabela tabela-simples" data-np-teste-tab><thead><tr><th>Tentativa sem login</th><th>Esperado</th><th>Resposta</th><th>Resultado</th></tr></thead><tbody>${linhas.join('')}</tbody></table></div>`;
 }
 
+
+/** Recuperar voos de uma versão anterior (só o Gestor): mostra o que sumiu e devolve só o que for marcado. */
+async function abrirRecuperar(id: number, versao: number) {
+  let antigo: Dataset | null = null;
+  try {
+    const r = await rpc<{ versao: number; salvo_em: string; dados: Dataset } | null>('ler_versao', { p_id: id });
+    antigo = r?.dados ?? null;
+  } catch (e) { toast((e as Error).message.includes('ler_versao') || (e as Error).message.includes('Could not find') ? 'Falta atualizar o banco: rode no SQL Editor o script de atualização (supabase-atualizacao-v1.7.3.sql).' : (e as Error).message, 'erro'); return; }
+  if (!antigo) { toast('Versão não encontrada.', 'erro'); return; }
+  const aus = voosAusentes(estado.ds, antigo);
+  const nomeAc = (idA: string) => antigo!.aeronaves?.find((a) => a.id === idA)?.identificacao ?? estado.ds.aeronaves.find((a) => a.id === idA)?.identificacao ?? '—';
+  const nomeTurno = (idT: string) => antigo!.turnos?.find((t) => t.id === idT)?.nome ?? estado.ds.turnos.find((t) => t.id === idT)?.nome ?? '—';
+  const nomeOS = (o: Operacao) => { const os = estado.ds.ordens.find((x) => x.id === o.osId) ?? antigo!.ordens?.find((x) => x.id === o.osId); const fz = os ? (estado.ds.fazendas.find((f) => f.id === os.fazendaId) ?? antigo!.fazendas?.find((f) => f.id === os.fazendaId)) : null; return `${fz?.nome ?? '—'} · OS ${os?.numero ?? '?'}`; };
+  const m = abrirModal(`Recuperar voos da versão ${versao}`, aus.length
+    ? `<p class="nota">Voos que existiam na versão ${versao} e <b>não existem mais</b> hoje. Marque os que devem voltar; nada do que existe hoje é alterado.</p>
+      <div class="tabela-rolagem"><table class="tabela tabela-simples"><thead><tr><th></th><th>Data</th><th>Turno</th><th>Drone</th><th>Fazenda / OS</th><th>Horário</th><th class="dir">Área</th></tr></thead><tbody>
+      ${aus.map((a) => `<tr><td><input type="checkbox" data-rv="${esc(a.op.id)}"></td><td>${esc(fmtDataBR(a.op.data))}</td><td>${esc(nomeTurno(a.op.turnoId))}</td><td>${esc(nomeAc(a.op.aeronaveId))}</td><td>${esc(nomeOS(a.op))}</td><td>${esc(a.op.horaInicio)}–${esc(a.op.horaFim ?? '')}</td><td class="dir">${esc(a.area.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))} ha</td></tr>`).join('')}
+      </tbody></table></div><div data-rv-tot class="nota"></div><div data-rv-msg></div>`
+    : `<p class="nota">Nenhum voo dessa versão está faltando hoje.</p>`,
+  { largura: 'lg', rodapeHTML: `<button class="btn btn-sec" data-fechar>Fechar</button>${aus.length ? '<button class="btn btn-pri" data-rv-ok disabled>Recuperar marcados</button>' : ''}` });
+  const marcados = () => [...m.el.querySelectorAll<HTMLInputElement>('[data-rv]:checked')].map((x) => x.dataset.rv!);
+  const tot = () => {
+    const ids = marcados(); const area = aus.filter((a) => ids.includes(a.op.id)).reduce((s2, a) => s2 + a.area, 0);
+    const t = m.el.querySelector('[data-rv-tot]') as HTMLElement | null; if (t) t.textContent = ids.length ? `${ids.length} voo(s) · ${area.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ha marcados` : '';
+    const b = m.el.querySelector('[data-rv-ok]') as HTMLButtonElement | null; if (b) b.disabled = !ids.length;
+  };
+  m.el.addEventListener('change', tot);
+  m.el.querySelector('[data-rv-ok]')?.addEventListener('click', () => {
+    const erro = alterar((ds) => recuperarVoos(ds, antigo!, marcados(), versao));
+    if (erro) { (m.el.querySelector('[data-rv-msg]') as HTMLElement).innerHTML = aviso('critico', esc(erro)); return; }
+    m.fechar(); toast('Voos recuperados. A nuvem é atualizada em seguida.', 'ok'); redesenhar();
+  });
+}
+const fmtDataBR = (d: string) => d.split('-').reverse().join('/');

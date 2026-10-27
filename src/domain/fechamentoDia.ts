@@ -289,11 +289,15 @@ export interface PreviaFechamento {
   tempoVoo?: (number | null)[];
 }
 
-/** Remove (em cópia) os voos de um fechamento anterior do mesmo dia para os mesmos drones. */
+/**
+ * Remove (em cópia) os voos de um fechamento anterior do MESMO dia, MESMO turno e mesmos drones (regravar o
+ * mesmo turno = correção). Voos de OUTRO turno do mesmo dia nunca são substituídos (ex.: 1º e 2º turno com o
+ * mesmo drone).
+ */
 function semAnterior(ds: Dataset, f: FichaDia): { base: Dataset; antigas: Operacao[] } {
   const acs = new Set(f.drones.map((d) => d.aeronaveId));
   const datas = new Set([f.data, ...(f.substituiDia ? [f.substituiDia] : [])]);
-  const antigas = ds.operacoes.filter((o) => !!o.fechamentoDia && datas.has(o.fechamentoDia) && acs.has(o.aeronaveId));
+  const antigas = ds.operacoes.filter((o) => !!o.fechamentoDia && datas.has(o.fechamentoDia) && acs.has(o.aeronaveId) && o.turnoId === f.turnoId);
   if (!antigas.length) return { base: ds, antigas };
   const ids = new Set(antigas.map((o) => o.id));
   return { base: { ...ds, operacoes: ds.operacoes.filter((o) => !ids.has(o.id)), paradas: ds.paradas.filter((p) => !ids.has(p.operacaoId)) }, antigas };
@@ -414,6 +418,8 @@ export function previaFechamento(dsOrig: Dataset, f: FichaDia, gerarId: (p: stri
   }
   const tempoVoo = f.drones.map((d) => { const vs = Object.entries(f.kml ?? {}).filter(([kk]) => kk.endsWith(`|${d.aeronaveId}`)); return vs.length ? round(vs.reduce((s2, [, m]) => s2 + m.tempoVooMin, 0), 1) : null; });
   f.drones.forEach((d, j) => { const tv = tempoVoo[j], t = tempos[j]; if (tv !== null && t && tv > t.efetivo + 5) avisos.push(`${nomeAc(d.aeronaveId)}: ${Math.round(tv)} min em voo no KML, mais que o tempo efetivo da ficha (${t.efetivo} min). Confira a janela e as paradas.`); });
+  const outrosTurnos = dsOrig.operacoes.filter((o) => !!o.fechamentoDia && o.fechamentoDia === f.data && o.turnoId !== f.turnoId && f.drones.some((d) => d.aeronaveId === o.aeronaveId));
+  if (outrosTurnos.length) avisos.push(`Já há ${outrosTurnos.length} voo(s) de outro turno em ${f.data.split('-').reverse().join('/')} com estes drones; eles são mantidos (este fechamento soma).`);
   if (antigas.length) avisos.push(`Substitui ${antigas.length} voo(s) do fechamento anterior de ${[...new Set(antigas.map((o) => o.fechamentoDia!))].map((d) => d.split('-').reverse().join('/')).join(' e ')}.`);
   return { ...res, ops: r.ops, paradas: r.paradas, tempoVoo };
 }

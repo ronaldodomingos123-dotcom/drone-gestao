@@ -142,7 +142,7 @@ try:
 
         # ---------------- Teste de segurança (sem login) contra as regras reais
         m = painel(A); m.locator('[data-np="teste"]').click()
-        ok('teste de segurança: 12/12 passaram', esperar(A, lambda: '12/12 verificações passaram' in A.inner_text('[data-np-teste]'), 20000))
+        ok('teste de segurança: 13/13 passaram', esperar(A, lambda: '13/13 verificações passaram' in A.inner_text('[data-np-teste]'), 20000))
         if SHOTS: A.locator('[data-nuvem-painel] .modal').screenshot(path=str(SHOTS / 'nuvem-teste-seguranca.png'))
         vt = versao(b)
         ok('após o teste: nenhuma alteração na nuvem', len(dados(b)['diasParados']) == 3 and vt == versao(b))
@@ -153,6 +153,21 @@ try:
         A.locator('[data-np-rest][data-v="1"]').click(); A.locator('[data-ok]').last.click()
         ok('Gestor volta à versão 1: nuvem sem dias parados', esperar(A, lambda: not dados(b).get('diasParados')))
         ok('B recebe a restauração', esperar(B, lambda: not ds_local(B).get('diasParados'), 12000))
+        fechar_modais(A)
+
+        # ---------------- Voo apagado por engano (ex.: 2º turno que substituiu o 1º) → Recuperar voos
+        d = dados(b); vperda = versao(b); perdido = d['operacoes'][1]['id']
+        d['operacoes'] = [o for o in d['operacoes'] if o['id'] != perdido]; d['paradas'] = [x for x in d['paradas'] if x['operacaoId'] != perdido]
+        gid = b.senhas['gestor@teste.local'][0]
+        b.como(gid, f"select public.salvar_dataset($j${json.dumps(d)}$j$::jsonb, {vperda})")
+        ok('simulação: um voo some da nuvem', esperar(A, lambda: len(ds_local(A)['operacoes']) == 1, 12000))
+        m = painel(A); m.locator('[data-np="hist"]').click(); esperar(A, lambda: A.locator('[data-np-recup]').count() > 0)
+        A.locator(f'[data-np-recup][data-v="{vperda}"]').click(); A.wait_for_selector('[data-rv]')
+        ok('Recuperar voos lista só o voo que sumiu', A.locator('[data-rv]').count() == 1 and A.locator(f'[data-rv="{perdido}"]').count() == 1)
+        A.check(f'[data-rv="{perdido}"]'); A.click('[data-rv-ok]')
+        ok('voo volta para a nuvem (sem mexer no resto)', esperar(A, lambda: any(o['id'] == perdido for o in dados(b)['operacoes']) and len(dados(b)['operacoes']) == 2, 15000))
+        ok('B recebe o voo recuperado', esperar(B, lambda: len(ds_local(B)['operacoes']) == 2, 12000))
+        ok('auditoria registra a recuperação', any('Recuperados 1 voo' in a['resumo'] for a in dados(b)['auditoria']))
         fechar_modais(A)
 
         # ---------------- Modo local: nada vai para a nuvem

@@ -91,6 +91,10 @@ select _tentar('não dá para rebaixar o último gestor', 'authenticated', :G, f
 select _tentar('gestor remove o acesso do líder', 'authenticated', :G, $q$select public.remover_acesso('lider@teste.local')::text$q$, '%"ok": true%');
 select _tentar('ex-líder vira visualizador e NÃO grava', 'authenticated', :L, format('select public.salvar_dataset(%L::jsonb, 4)', :D3), 'ERRO');
 
+select _tentar('sem login: NÃO lê versão anterior', 'anon', null, format('select public.ler_versao(%s)::text', :h1), 'ERRO');
+select _tentar('líder NÃO lê versão anterior', 'authenticated', :L, format('select public.ler_versao(%s)::text', :h1), 'ERRO');
+select _tentar('gestor lê versão anterior (para recuperar voos)', 'authenticated', :G, format('select (public.ler_versao(%s)->>''versao'')', :h1), '1');
+
 -- limite do histórico: 65 gravações → ficam 60
 do $$ declare i int; v bigint;
 begin

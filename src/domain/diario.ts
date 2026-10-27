@@ -9,6 +9,7 @@ import type { Indices } from './analytics';
 import { ultimo, aplicacoes, aplicadoPorItem, areaObstaculo, areaOperacao, areaPlanejadaOS, duracaoParadaMin, duracaoTotalMin, hhmmParaMin, isoLocalParaMin, quantidadeTotal, somaParadasMin } from './calc';
 import type { Dataset, LeituraClima, MotivoParada, Operacao, UnidadeDose } from './types';
 import { MOTIVOS_CLIMATICOS } from './types';
+import { registrar } from './base';
 
 export interface FiltroDia { turnoId: string; liderId: string; campanhaId: string }
 
@@ -43,7 +44,7 @@ export interface ResumoDia {
   campanhas: string[];
   impedidas: number;
   eventos: EventoLinhaTempo[];
-  observacoes: { aeronave: string; texto: string }[];
+  observacoes: { aeronave: string; texto: string; opIds: string[] }[];
   // Campanha até o dia
   planejadoEscopo: number;
   obstaculosEscopo: number;
@@ -105,6 +106,11 @@ export function resumoDia(ds: Dataset, idx: Indices, data: string, f: FiltroDia)
     eventos.push({ minutoAbs: fim, hora: hhmm(fim), tipo: 'fim', texto: 'Fim da aplicação', aeronave: ac, climatico: false });
   }
   eventos.sort((a, b) => a.minutoAbs - b.minutoAbs || a.aeronave.localeCompare(b.aeronave));
+  // mesmo evento, mesma hora, em vários drones → um só item com os drones juntos
+  for (let i = eventos.length - 1; i > 0; i--) {
+    const a = eventos[i - 1], b = eventos[i];
+    if (a.minutoAbs === b.minutoAbs && a.tipo === b.tipo && a.texto === b.texto) { a.aeronave = `${a.aeronave}, ${b.aeronave}`; eventos.splice(i, 1); }
+  }
 
   // Fazendas
   const mf = new Map<string, { fazendaId: string; area: number; talhoes: Set<string>; os: Set<string> }>();
@@ -182,15 +188,44 @@ const NOTA_AUTOMATICA = /^(Data corrigida:|Fechamento do dia\b|Importad[oa] d[oe
  * Só o que foi digitado (observações do operador / da ficha), sem as notas técnicas automáticas.
  * Texto igual em vários voos do dia aparece uma vez, com os drones juntos.
  */
-export function observacoesDigitadas(ds: Dataset, ops: Operacao[]): { aeronave: string; texto: string }[] {
-  const porTexto = new Map<string, Set<string>>();
+const partesObs = (txt: string) => txt.split(/\s+·\s+|\n+/);
+const limparParte = (p: string) => p.replace(/^Encerramento:\s*/i, '').trim();
+const ehAuto = (p: string) => NOTA_AUTOMATICA.test(limparParte(p));
+
+/** Texto digitado (sem notas automáticas) de uma observação gravada — um texto por voo. */
+export function textosDigitados(txt: string | undefined): string[] {
+  const t = partesObs(txt ?? '').filter((p) => p.trim() && !ehAuto(p)).map(limparParte).join(' · ');
+  return t ? [t] : [];
+}
+
+export function observacoesDigitadas(ds: Dataset, ops: Operacao[]): { aeronave: string; texto: string; opIds: string[] }[] {
+  const porTexto = new Map<string, { acs: Set<string>; ids: string[] }>();
   for (const o of ops) {
     const ac = ds.aeronaves.find((a) => a.id === o.aeronaveId)?.identificacao ?? '—';
-    for (const parte of (o.observacoesOperador ?? '').split(/\s+·\s+(?=Encerramento:|Data corrigida:)|\n+/)) {
-      const t = parte.replace(/^Encerramento:\s*/i, '').trim();
-      if (!t || NOTA_AUTOMATICA.test(t)) continue;
-      (porTexto.get(t) ?? porTexto.set(t, new Set()).get(t)!).add(ac);
+    for (const t of textosDigitados(o.observacoesOperador)) {
+      const x = porTexto.get(t) ?? porTexto.set(t, { acs: new Set(), ids: [] }).get(t)!;
+      x.acs.add(ac); x.ids.push(o.id);
     }
   }
-  return [...porTexto.entries()].map(([texto, acs]) => ({ aeronave: [...acs].join(', '), texto }));
+  return [...porTexto.entries()].map(([texto, x]) => ({ aeronave: [...x.acs].join(', '), texto, opIds: x.ids }));
+}
+
+/**
+ * Edita (novo texto) ou exclui (null) uma observação digitada nos voos indicados. As notas automáticas
+ * ficam como estão. Retorna erro ou null.
+ */
+export function editarObservacao(ds: Dataset, opIds: string[], antigo: string, novo: string | null): string | null {
+  const n = novo?.trim() ?? null;
+  if (novo !== null && !n) return 'Escreva a observação ou use Excluir.';
+  let mudou = 0;
+  for (const o of ds.operacoes) {
+    if (!opIds.includes(o.id) || !o.observacoesOperador) continue;
+    if (textosDigitados(o.observacoesOperador)[0] !== antigo) continue;
+    const auto = partesObs(o.observacoesOperador).filter((p) => p.trim() && ehAuto(p)).map((p) => p.trim());
+    o.observacoesOperador = [...auto, ...(n ? [n] : [])].join(' · ');
+    mudou++;
+  }
+  if (!mudou) return 'Observação não encontrada (talvez já tenha sido alterada). Atualize a tela.';
+  registrar(ds, { entidade: 'operacao', entidadeId: opIds[0], acao: n ? 'editar' : 'excluir', resumo: n ? `Observação editada: "${antigo}" → "${n}"` : `Observação excluída: "${antigo}"`, antes: antigo, depois: n ?? undefined });
+  return null;
 }

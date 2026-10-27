@@ -1417,5 +1417,40 @@ test('Diário: observações só com o que foi digitado (sem notas automáticas)
     op('a2', 'Data corrigida: no app de acompanhamento constava 14/10/2026. · Encerramento: Fim do 1º Turno · atraso do gerador', 'Fechamento do dia com KML de voo: …'),
     op('a2', '', ''),
   ]);
-  assert.deepEqual(r, [{ aeronave: 'T70-P DR-01, T70-P DR-02', texto: 'Fim do 1º Turno · atraso do gerador' }]);
+  assert.deepEqual(r.map(({ aeronave, texto }) => ({ aeronave, texto })), [{ aeronave: 'T70-P DR-01, T70-P DR-02', texto: 'Fim do 1º Turno · atraso do gerador' }]);
+});
+
+import { recuperarVoos, voosAusentes } from '../src/domain/recuperar';
+import { textosDigitados } from '../src/domain/diario';
+test('fechamento: 2º turno no mesmo dia com o mesmo drone NÃO apaga o 1º turno; regravar o mesmo turno substitui; voos apagados podem ser recuperados de uma versão anterior', () => {
+  const { ds, gid } = baseFungicida();
+  ds.turnos.push({ id: 'tn2', nome: '2º Turno', periodo: 'Noturno', horaInicio: '15:50', horaFim: '23:59', liderId: 'l1', ativo: true });
+  ds.ordens.forEach((o) => o.itens.forEach((i) => { i.areaPlanejadaHa *= 10; })); ds.talhoes.forEach((t) => { t.areaHa *= 10; }); // saldo para dois turnos
+  const l = lerCodigoAcomp(readFileSync('tests/fixtures/acomp-codigo.txt', 'utf8'));
+  const diaObs = { ...l.dias[0], obs: ['Das 13h20 até a troca de turno houve atraso do gerador'] };
+  const f1 = fichaDoDiaAcomp(ds, l, diaObs, { turnoId: 'tn', liderId: 'l1', responsavel: 'T' }, '2026-10-19').ficha;
+  f1.fazendas.forEach((z) => { z.concluir = false; z.descontoEm = []; }); // OS seguem abertas para o 2º turno
+  assert.equal(gravarFechamento(ds, f1, gid, ''), null);
+  const n1 = ds.operacoes.length, area1 = ds.operacoes.reduce((s, o) => s + areaOperacao(o), 0);
+  const obs1 = textosDigitados(f1.observacoes);
+  const f2acomp = fichaDoDiaAcomp(ds, l, diaObs, { turnoId: 'tn2', liderId: 'l1', responsavel: 'T' }, '2026-10-19').ficha;
+  assert.ok(obs1.length > 0, 'o dia do fixture tem observação digitada');
+  assert.deepEqual(textosDigitados(f2acomp.observacoes).filter((t) => obs1.some((o) => o.includes(t))), [], 'observação do 1º turno não é repetida no 2º turno');
+  const antes = JSON.parse(JSON.stringify(ds));
+  const f2 = { ...JSON.parse(JSON.stringify(f1)), turnoId: 'tn2' };
+  assert.equal(gravarFechamento(ds, f2, gid, ''), null);
+  assert.equal(ds.operacoes.length, n1 * 2, '2º turno soma: os voos do 1º turno ficam');
+  assert.equal(round(ds.operacoes.reduce((s, o) => s + areaOperacao(o), 0), 2), round(area1 * 2, 2));
+  assert.equal(gravarFechamento(ds, JSON.parse(JSON.stringify(f2)), gid, ''), null);
+  assert.equal(ds.operacoes.length, n1 * 2, 'regravar o 2º turno substitui só o 2º turno');
+  // simula a perda (versão de antes tinha o 1º turno) e recupera
+  const perdidos = ds.operacoes.filter((o) => o.turnoId === 'tn').map((o) => o.id);
+  ds.operacoes = ds.operacoes.filter((o) => o.turnoId !== 'tn'); ds.paradas = ds.paradas.filter((p) => !perdidos.includes(p.operacaoId));
+  const aus = voosAusentes(ds, antes);
+  assert.deepEqual(aus.map((a) => a.op.id).sort(), perdidos.sort(), 'lista exatamente os voos que sumiram');
+  assert.equal(recuperarVoos(ds, antes, perdidos, 7), null);
+  assert.equal(ds.operacoes.length, n1 * 2);
+  assert.ok(ds.paradas.some((p) => perdidos.includes(p.operacaoId)) || !antes.paradas.some((p: { operacaoId: string }) => perdidos.includes(p.operacaoId)), 'paradas do voo voltam junto');
+  assert.ok(recuperarVoos(ds, antes, perdidos, 7)!.includes('Nenhum'), 'não duplica ao recuperar de novo');
+  assert.ok(ds.auditoria.some((a) => a.resumo.includes('Recuperados')));
 });

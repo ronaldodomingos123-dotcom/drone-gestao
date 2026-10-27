@@ -3,16 +3,17 @@
  * mas montada automaticamente a partir dos registros de operação.
  */
 import { ultimo, formatarDuracao, intervaloDatas, produtividadeEfetiva, produtividadeOperacional, safeDiv } from '../domain/calc';
-import { datasComOperacao, resumoDia, type FiltroDia } from '../domain/diario';
+import { datasComOperacao, editarObservacao, resumoDia, type FiltroDia } from '../domain/diario';
+import { podeGravar } from '../data/nuvem';
 import { metaDiaria } from '../domain/metas';
 import { preverTermino } from '../domain/previsao';
 import type { LeituraClima, Operacao } from '../domain/types';
 import { contextoClima } from '../domain/estacao';
 import { avaliarLeitura } from '../domain/validation';
 import { PREFIXO } from '../data/repository';
-import { estado, nome } from '../state';
+import { alterar, estado, nome } from '../state';
 import { aviso } from '../ui/components';
-import { esc, fmtData, fmtHa, fmtNum, fmtPct } from '../ui/dom';
+import { abrirModal, confirmar, esc, fmtData, fmtHa, fmtNum, fmtPct, toast } from '../ui/dom';
 import { exportarPNG } from '../ui/exportar';
 import { icone } from '../ui/icons';
 import { botoesExportar, exportarRelatorio, responsavelAtual } from './relatorios';
@@ -20,6 +21,7 @@ import type { Relatorio } from '../domain/relatorios';
 
 const CHAVE = `${PREFIXO}diario`;
 let dia = '';
+let obsAtuais: { aeronave: string; texto: string; opIds: string[] }[] = [];
 let filtro: FiltroDia = { turnoId: '', liderId: '', campanhaId: '' };
 
 const DIAS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
@@ -45,6 +47,8 @@ export function renderDiario(raiz: HTMLElement) {
     if ((e.target as HTMLElement).closest('[data-acao="imprimir"]')) window.print();
     const ex = (e.target as HTMLElement).closest('[data-exp]') as HTMLButtonElement | null;
     if (ex) void exportarRelatorio(relDiario(), ex.dataset.exp as 'csv' | 'xlsx' | 'pdf', ex);
+    const be = (e.target as HTMLElement).closest('[data-obs-editar],[data-obs-excluir]') as HTMLElement | null;
+    if (be) { void acaoObservacao(host, be); return; }
     const bi = (e.target as HTMLElement).closest('[data-acao="imagem"]') as HTMLButtonElement | null;
     if (bi) void exportarPNG(host, `diario-aplicacoes-${dia}.png`, `Diário de aplicações ${fmtData(dia)}`, bi, ['dia-barra']);
   });
@@ -63,6 +67,7 @@ export function renderDiario(raiz: HTMLElement) {
 function relDiario(): Relatorio {
   const { ds, idx } = estado;
   const r = resumoDia(ds, idx, dia, filtro);
+  obsAtuais = r.observacoes;
   const meta = metaDiaria(ds.metas, { umDrone: false, umTurno: !!(filtro.turnoId || filtro.liderId) });
   const filtros = [filtro.campanhaId ? `Campanha: ${nome.campanha(filtro.campanhaId)}` : '', filtro.turnoId ? `Turno: ${nome.turno(filtro.turnoId)}` : '', filtro.liderId ? `Líder: ${nome.colaborador(filtro.liderId)}` : ''].filter(Boolean);
   const leitura = (l: LeituraClima | null) => (l ? `${l.hora} · ${l.temperaturaC ?? '—'} °C · UR ${l.umidadePct ?? '—'}% · vento ${l.ventoKmh ?? '—'} km/h` : '—');
@@ -97,6 +102,7 @@ function desenhar(host: HTMLElement) {
   try { localStorage.setItem(CHAVE, JSON.stringify({ dia, filtro })); } catch { /* opcional */ }
   const { ds, idx } = estado;
   const r = resumoDia(ds, idx, dia, filtro);
+  obsAtuais = r.observacoes;
   const lim = ds.limites;
   const datas = datasComOperacao(ds, filtro);
   const iDia = datas.indexOf(dia);
@@ -182,7 +188,7 @@ function desenhar(host: HTMLElement) {
     <div class="dia-dupla inv">
       <section class="cartao">
         <header class="cartao-cab"><div><h2 class="dia-tit">${icone('info', 16)} Observações</h2></div></header>
-        ${r.observacoes.length ? `<ul class="dia-obs">${r.observacoes.map((o) => `<li><b>${esc(o.aeronave)}</b> ${esc(o.texto)}</li>`).join('')}</ul>` : '<p class="vazio-txt">Sem observações digitadas neste dia.</p>'}
+        ${r.observacoes.length ? `<ul class="dia-obs">${r.observacoes.map((o, i) => `<li><b>${esc(o.aeronave)}</b> ${esc(o.texto)}${podeGravar() ? `<span class="dia-obs-acoes" data-sem-exportar><button class="btn-icone" data-obs-editar="${i}" title="Editar observação" aria-label="Editar observação">${icone('config', 13)}</button><button class="btn-icone" data-obs-excluir="${i}" title="Excluir observação" aria-label="Excluir observação">${icone('lixo', 13)}</button></span>` : ''}</li>`).join('')}</ul>` : '<p class="vazio-txt">Sem observações digitadas neste dia.</p>'}
       </section>
       <section class="cartao">
         <header class="cartao-cab"><div><h2 class="dia-tit">${icone('historico', 16)} Linha do tempo</h2><p>Gerada das paradas registradas · abastecimentos omitidos</p></div></header>
@@ -227,4 +233,24 @@ function estacaoDoDia(ops: Operacao[]): string {
     <div class="tabela-rolagem"><table class="tabela tabela-simples"><thead><tr><th>Horário</th><th>Fazenda</th><th>Drone</th><th>Estação</th><th>Base</th><th class="dir">Chuva</th><th class="dir">T máx.</th><th class="dir">UR mín.</th><th class="dir">Rajada</th><th class="dir">ΔT pior</th><th>Alertas</th></tr></thead><tbody>
     ${ls.map(({ op, c }) => { const al = c!.alertas.filter((a) => a !== 'estação sem sensor de vento'); return `<tr><td>${esc(op.horaInicio)}–${esc(op.horaFim ?? '…')}</td><td>${esc(nome.fazenda(estado.ds.ordens.find((o) => o.id === op.osId)?.fazendaId ?? ''))}</td><td>${esc(nome.aeronave(op.aeronaveId))}</td><td>PIC ${esc(c!.estacao.pic)}</td><td>${c!.diario ? '<span class="selo selo-neutro">dia</span>' : '<span class="selo selo-info">voo</span>'}</td><td class="dir">${f(c!.chuva)} mm</td><td class="dir">${f(c!.tmax)} °C</td><td class="dir">${f(c!.urmin, 0)}%</td><td class="dir">${c!.estacao.temVento ? `${f(c!.rajada)} km/h` : 'sem sensor'}</td><td class="dir">${f(c!.deltaTPior)} °C</td><td>${al.map((a) => `<span class="selo selo-atencao">${esc(a)}</span>`).join(' ') || '<span class="selo selo-ok">ok</span>'}</td></tr>`; }).join('')}
     </tbody></table></div></section>`;
+}
+
+/** Editar / excluir uma observação digitada (vale para todos os voos do dia que têm o mesmo texto). */
+async function acaoObservacao(host: HTMLElement, b: HTMLElement) {
+  const o = obsAtuais[Number(b.dataset.obsEditar ?? b.dataset.obsExcluir)];
+  if (!o) return;
+  if (b.dataset.obsExcluir !== undefined) {
+    if (!(await confirmar('Excluir observação', `Excluir esta observação do dia ${fmtData(dia)} (${o.aeronave})?\n\n"${o.texto}"`, 'Excluir'))) return;
+    const erro = alterar((ds) => editarObservacao(ds, o.opIds, o.texto, null));
+    if (erro) toast(erro, 'erro'); else { toast('Observação excluída.', 'ok'); desenhar(host); }
+    return;
+  }
+  const m = abrirModal('Editar observação', `<p class="nota">${esc(fmtData(dia))} · ${esc(o.aeronave)}</p><label class="campo"><span>Observação</span><textarea data-obs-txt rows="5">${esc(o.texto)}</textarea></label><div data-obs-msg></div>`,
+    { rodapeHTML: `<button class="btn btn-sec" data-fechar>Cancelar</button><button class="btn btn-pri" data-obs-ok>Salvar</button>` });
+  m.el.querySelector('[data-obs-ok]')!.addEventListener('click', () => {
+    const novo = (m.el.querySelector('[data-obs-txt]') as HTMLTextAreaElement).value;
+    const erro = alterar((ds) => editarObservacao(ds, o.opIds, o.texto, novo));
+    if (erro) { (m.el.querySelector('[data-obs-msg]') as HTMLElement).innerHTML = aviso('critico', esc(erro)); return; }
+    m.fechar(); toast('Observação salva.', 'ok'); desenhar(host);
+  });
 }

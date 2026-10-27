@@ -95,6 +95,13 @@ scripts/       build (arquivo único) e execução de testes
 - Bibliotecas, embutidas e carregadas só ao exportar: **jszip** 3.10 (MIT) e **pdf-lib** 1.17 (MIT). Nada é enviado pela internet.
 - Toda área vem de voo (Fechamento do dia ou Registro de campo). Aplicado lançado sem voo em versões anteriores (v0.9.3–v1.1) continua contando na área, fora do ha/h.
 
+## Correção: dois turnos no mesmo dia; recuperar voos; observações editáveis (v1.7.3)
+
+- **Correção importante:** gravar o fechamento de um turno substituía os voos já gravados na MESMA data para os MESMOS drones, mesmo de OUTRO turno (ex.: o 2º turno apagava o 1º com o mesmo drone). Agora só é substituído o fechamento do mesmo dia, mesmo turno e mesmos drones (regravar = corrigir); voos de outro turno são mantidos e a prévia avisa que o fechamento soma.
+- **Recuperar voos** (Nuvem e acesso → Versões anteriores, Gestor): lista os voos que existiam numa versão anterior e não existem mais hoje; devolve só os marcados (com as paradas), sem mexer no resto; fica na auditoria. Requer a função `ler_versao` no banco (`supabase/atualizacao-v1.7.3.sql`, já incluída no `schema.sql`).
+- **Observações do Diário**: botões Editar e Excluir (Líder/Gestor); vale para todos os voos do dia com o mesmo texto; as notas técnicas automáticas ficam como estão. Na importação do app de acompanhamento, observação que já está em outro turno do mesmo dia não é repetida.
+- **Linha do tempo**: o mesmo evento, na mesma hora, nos dois drones aparece uma vez (com os dois drones).
+
 ## Diário: imagem e observações (v1.7.2)
 
 - Imagem exportada: o cabeçalho (data, campanha, turno · líder) não quebra linha, para não sobrepor os cartões quando a imagem usa a fonte do sistema.

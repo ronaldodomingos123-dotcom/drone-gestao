@@ -1028,3 +1028,7 @@ b.nv-ok { color: #1f7a45; } b.nv-aviso { color: #8a5a00; } b.nv-erro { color: #a
   body.menu-recolhido .topo .abrir-menu { display: inline-grid; }
 }
 @media (max-width: 1024px) { .lateral .fixar-menu { display: none; } }
+.dia-obs-acoes { display: inline-flex; gap: 2px; margin-left: 6px; vertical-align: middle; }
+.dia-obs-acoes .btn-icone { width: 26px; height: 26px; color: var(--texto-3); }
+.dia-obs-acoes .btn-icone:hover { color: var(--texto); }
+#diario.exportando .dia-obs-acoes { display: none; }
