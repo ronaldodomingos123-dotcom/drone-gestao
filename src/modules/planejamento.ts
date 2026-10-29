@@ -2,7 +2,7 @@
 import { haPorTurnoDrone, metaDiaria, metaSemanal } from '../domain/metas';
 import { planejarCampanhas, type PlanoCampanha } from '../domain/planejamento';
 import type { Relatorio } from '../domain/relatorios';
-import { alterar, estado, redesenhar } from '../state';
+import { alterar, estado, nome, redesenhar } from '../state';
 import { diasCampanha, gravarSafra, resumoSafra, type ResumoDias } from '../domain/dias';
 import { abrirFormulario } from '../ui/form';
 import { toast } from '../ui/dom';
@@ -70,7 +70,7 @@ export function blocoDias(d: ResumoDias | null, titulo = 'Dias da campanha'): st
     <div class="dias-tit">${esc(titulo)} <small>${esc(fmtData(d.de))} a ${esc(fmtData(d.ate))}</small></div>
     <div class="chips-info"><span>Corridos <b>${d.corridos}</b></span><span>Com aplicação <b>${d.comAplicacao}</b>${d.pctEfetivo !== null ? ` (${esc(fmtPct(d.pctEfetivo, 0))})` : ''}</span><span>Parados <b>${d.parados}</b>${d.parados ? ` (clima ${d.paradosClima})` : ''}</span><span>Sem registro <b>${d.semRegistro}</b></span><span>ha/dia com aplicação <b>${esc(fmtNum(d.haDiaEfetivo, 1))}</b></span><span>ha/dia corrido <b>${esc(fmtNum(d.haDiaCorrido, 1))}</b></span></div>
     ${motivos ? `<p class="nota">Motivos: ${motivos}</p>` : ''}
-    ${d.dias.length <= 31 ? `<div class="dias-celulas">${d.dias.map((x) => `<div class="dia-cel ${COR_DIA[x.tipo]}" title="${esc(x.tipo === 'parado' && x.observacao ? x.observacao : '')}"><b>${esc(fmtData(x.data).slice(0, 5))}</b><small>${x.tipo === 'aplicacao' ? `${esc(fmtNum(x.area, 1))} ha` : x.tipo === 'parado' ? esc(MOTIVO_CURTO[x.motivo ?? ''] ?? x.motivo ?? 'parado') : x.data === hojeISO() ? 'hoje' : 'sem registro'}</small></div>`).join('')}</div>` : ''}
+    ${d.dias.length <= 31 ? `<div class="dias-celulas">${d.dias.map((x) => `<div class="dia-cel ${COR_DIA[x.tipo]}" title="${esc(x.turnosParados?.length ? x.turnosParados.map((t) => `${nome.turno(t.turnoId)} parado: ${t.motivo}${t.observacao ? ` — ${t.observacao}` : ''}`).join(' · ') : x.tipo === 'parado' && x.observacao ? x.observacao : '')}"><b>${esc(fmtData(x.data).slice(0, 5))}</b><small>${x.tipo === 'aplicacao' ? `${esc(fmtNum(x.area, 1))} ha${x.turnosParados?.length ? `<em class="dia-turno">${x.turnosParados.map((t) => esc(`${nome.turno(t.turnoId)}: ${MOTIVO_CURTO[t.motivo] ?? t.motivo}`)).join('<br>')}</em>` : ''}` : x.tipo === 'parado' ? esc(MOTIVO_CURTO[x.motivo ?? ''] ?? x.motivo ?? 'parado') : x.data === hojeISO() ? 'hoje' : 'sem registro'}</small></div>`).join('')}</div>` : ''}
     <div class="dias-faixa" ${d.dias.length <= 31 ? 'hidden' : ''} role="img" aria-label="Dias: aplicação, parado, sem registro">${ultimos.map((x) => `<i class="${COR_DIA[x.tipo]}" title="${esc(fmtData(x.data))} · ${x.tipo === 'aplicacao' ? `${fmtNum(x.area, 2)} ha` : x.tipo === 'parado' ? esc(`${x.motivo ?? 'parado'}${x.observacao ? ` — ${x.observacao}` : ''}`) : 'sem registro'}"></i>`).join('')}</div>
     <div class="dias-leg"><span><i class="dia-apl"></i>com aplicação</span><span><i class="dia-par"></i>parado (dia sem aplicação)</span><span><i class="dia-sem"></i>sem registro</span>${d.dias.length > ultimos.length ? `<span>últimos ${ultimos.length} dias</span>` : ''}</div>
   </div>`;

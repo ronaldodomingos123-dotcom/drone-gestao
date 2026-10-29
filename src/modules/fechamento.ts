@@ -72,14 +72,14 @@ export function renderFechamento(raiz: HTMLElement) {
   const lideres = ds.colaboradores.filter((c) => c.funcao === 'Líder de turno' && c.ativo);
   const tal = (id: string) => ds.talhoes.find((t) => t.id === id);
 
-  raiz.innerHTML = `${cabecalhoPagina('Fechamento do dia', 'Registre o dia pela ficha diária: toda área vira voo, com drone, piloto e horário. O que a ficha não traz (área de cada drone em cada fazenda, horário de cada trecho) é estimado por proporção e pode ser editado.', `<button class="btn btn-pri" data-acao="importar-acomp">${icone('camadas', 15)} Importar do app de acompanhamento</button><button class="btn btn-sec" data-acao="importar-kml">${icone('rota', 15)} Importar KML de voo</button>${ultimoKml ? `<button class="btn btn-sec" data-acao="cruzamento">${icone('camadas', 15)} Cruzamento com os talhões</button>` : ''}<button class="btn btn-sec" data-acao="dia-parado">${icone('clima', 15)} Dia sem aplicação</button><button class="btn btn-sec" data-acao="limpar">${icone('lixo', 15)} Limpar</button>`)}
+  raiz.innerHTML = `${cabecalhoPagina('Fechamento do dia', 'Registre o dia pela ficha diária: toda área vira voo, com drone, piloto e horário. O que a ficha não traz (área de cada drone em cada fazenda, horário de cada trecho) é estimado por proporção e pode ser editado.', `<button class="btn btn-pri" data-acao="importar-acomp">${icone('camadas', 15)} Importar do app de acompanhamento</button><button class="btn btn-sec" data-acao="importar-kml">${icone('rota', 15)} Importar KML de voo</button>${ultimoKml ? `<button class="btn btn-sec" data-acao="cruzamento">${icone('camadas', 15)} Cruzamento com os talhões</button>` : ''}<button class="btn btn-sec" data-acao="dia-parado">${icone('clima', 15)} Dia/turno sem aplicação</button><button class="btn btn-sec" data-acao="limpar">${icone('lixo', 15)} Limpar</button>`)}
   <div class="fch">
   <section class="cartao"><header class="cartao-cab"><h2>${icone('relogio', 16)} Dia</h2></header>
     <div class="form-grade compacta">
       <label class="campo"><span>Data</span><input type="date" data-f="data" value="${esc(f.data)}"></label>
       <label class="campo"><span>Hora inicial</span><input type="time" data-f="inicio" value="${esc(f.inicio)}"></label>
       <label class="campo"><span>Hora final</span><input type="time" data-f="fim" value="${esc(f.fim)}"></label>
-      <label class="campo"><span>Turno</span><select data-f="turnoId">${opt('', 'Selecione…', f.turnoId)}${ds.turnos.filter((t) => t.ativo).map((t) => opt(t.id, `${t.nome} (${t.horaInicio}–${t.horaFim})`, f.turnoId)).join('')}</select></label>
+      <label class="campo"><span>Turno</span><select data-f="turnoId">${opt('', 'Selecione…', f.turnoId)}${ds.turnos.filter((t) => t.ativo).map((t) => opt(t.id, `${t.nome} (${t.horaInicio}–${t.horaFim})`, f.turnoId)).join('')}</select><button type="button" class="link" data-acao="turno-parado" title="O turno não aplicou (vento, chuva…) — o outro turno pode ter aplicado">Este turno não aplicou? Lançar parada</button></label>
       <label class="campo"><span>Líder</span><select data-f="liderId">${opt('', 'Selecione…', f.liderId)}${lideres.map((c) => opt(c.id, c.nome, f.liderId)).join('')}</select></label>
       <label class="campo"><span>Responsável</span><input data-f="responsavel" value="${esc(f.responsavel)}" placeholder="Nome"></label>
       <label class="campo"><span>Taxa de aplicação (L/ha)</span><input class="num" inputmode="decimal" data-f="volumeLHa" value="${esc(num(f.volumeLHa, 1))}" placeholder="${esc(volOSTexto())}"><small>Vale para todas as fazendas do dia</small></label>
@@ -226,6 +226,7 @@ function ligar(raiz: HTMLElement) {
       case 'limpar': f = novaFicha(); break;
       case 'importar-acomp': abrirImportAcomp(raiz); return;
       case 'dia-parado': abrirDiaParado(); return;
+      case 'turno-parado': abrirDiaParado(f.turnoId || undefined); return;
       case 'importar-kml': abrirImportKml(raiz); return;
       case 'cruzamento': abrirCruzamento(raiz); return;
       case 'gravar': {
@@ -496,14 +497,16 @@ function abrirCruzamento(raiz: HTMLElement) {
 }
 
 /** Registrar dia(s) sem aplicação (chuva, vento…) — entram na contagem de dias da campanha e da safra. */
-function abrirDiaParado() {
+function abrirDiaParado(turnoInicial?: string) {
   const hoje = hojeISO();
   const ref = f.data && f.data <= hoje ? f.data : hoje;
   const ds = estado.ds;
   const ativas = (d: string) => ds.campanhas.filter((c) => c.inicio <= d && (!c.fim || c.fim >= d));
-  const m = abrirModal('Dia sem aplicação', `
-    <p class="nota">Use quando a equipe não aplicou no dia (chuva, vento, manutenção…). O dia passa a contar como <b>parado</b> nos dias da campanha e da safra. Dias que já têm aplicação gravada não são marcados (a parada desses dias vai nas pausas do fechamento).</p>
+  const turnos = ds.turnos.filter((t) => t.ativo || t.id === turnoInicial);
+  const m = abrirModal('Dia ou turno sem aplicação', `
+    <p class="nota">Lançamento manual de parada. <b>Dia inteiro</b>: ninguém aplicou (o dia conta como parado na campanha e na safra; dias com aplicação gravada não são marcados). <b>Só um turno</b>: um turno não aplicou (ex.: vento no seu turno) e o outro pode ter aplicado — o dia continua com a área do outro turno e o motivo aparece no gráfico como ½.</p>
     <div class="form-grade">
+      <label class="campo"><span>Abrangência</span><select data-dp="turno">${opt('', 'Dia inteiro (todos os turnos)', turnoInicial ?? '')}${turnos.map((t) => opt(t.id, `Só o ${t.nome} (${t.horaInicio}–${t.horaFim})`, turnoInicial ?? '')).join('')}</select></label>
       <label class="campo"><span>De</span><input type="date" data-dp="de" value="${esc(ref)}" max="${esc(hoje)}"></label>
       <label class="campo"><span>Até</span><input type="date" data-dp="ate" value="${esc(ref)}" max="${esc(hoje)}"></label>
       <label class="campo"><span>Motivo</span><select data-dp="motivo">${motivos('Chuva')}</select></label>
@@ -522,8 +525,8 @@ function abrirDiaParado() {
   };
   const lista = () => {
     const ps = [...(estado.ds.diasParados ?? [])].sort((a, b) => b.data.localeCompare(a.data));
-    q<HTMLElement>('lista').innerHTML = ps.length ? `<div class="tabela-rolagem"><table class="tabela tabela-simples"><thead><tr><th>Data</th><th>Motivo</th><th>Campanhas</th><th>Observação</th><th></th></tr></thead><tbody>
-      ${ps.map((p) => `<tr data-dp-linha="${esc(p.data)}"><td>${esc(fmtData(p.data))}</td><td>${esc(p.motivo)}</td><td>${p.campanhaIds.length ? p.campanhaIds.map((id) => esc(estado.ds.campanhas.find((c) => c.id === id)?.nome ?? '?')).join(', ') : 'todas'}</td><td>${esc(p.observacao ?? '')}</td><td><button class="btn-icone" data-dp-rm="${esc(p.id)}" title="Remover">${icone('lixo', 13)}</button></td></tr>`).join('')}
+    q<HTMLElement>('lista').innerHTML = ps.length ? `<div class="tabela-rolagem"><table class="tabela tabela-simples"><thead><tr><th>Data</th><th>Abrangência</th><th>Motivo</th><th>Campanhas</th><th>Observação</th><th></th></tr></thead><tbody>
+      ${ps.map((p) => `<tr data-dp-linha="${esc(p.data)}"${p.turnoId ? ` data-dp-turno="${esc(p.turnoId)}"` : ''}><td>${esc(fmtData(p.data))}</td><td>${p.turnoId ? esc(nome.turno(p.turnoId)) : 'Dia inteiro'}</td><td>${esc(p.motivo)}</td><td>${p.campanhaIds.length ? p.campanhaIds.map((id) => esc(estado.ds.campanhas.find((c) => c.id === id)?.nome ?? '?')).join(', ') : 'todas'}</td><td>${esc(p.observacao ?? '')}</td><td><button class="btn-icone" data-dp-rm="${esc(p.id)}" title="Remover">${icone('lixo', 13)}</button></td></tr>`).join('')}
       </tbody></table></div>` : '<p class="nota">Nenhum dia sem aplicação registrado.</p>';
   };
   camps(); lista();
@@ -534,11 +537,12 @@ function abrirDiaParado() {
     if (!(e.target as HTMLElement).closest('[data-dp="gravar"]')) return;
     const campanhaIds = [...r.querySelectorAll<HTMLInputElement>('[data-dp-camp]:checked')].map((x) => x.dataset.dpCamp!);
     let res: ReturnType<typeof registrarDiasParados> | null = null;
-    const erro = alterar((d) => { res = registrarDiasParados(d, { de: q<HTMLInputElement>('de').value, ate: q<HTMLInputElement>('ate').value, motivo: q<HTMLSelectElement>('motivo').value as MotivoParada, observacao: q<HTMLInputElement>('obs').value, campanhaIds }, novoId, hojeISO()); return res.erro; });
+    const erro = alterar((d) => { res = registrarDiasParados(d, { de: q<HTMLInputElement>('de').value, ate: q<HTMLInputElement>('ate').value, motivo: q<HTMLSelectElement>('motivo').value as MotivoParada, observacao: q<HTMLInputElement>('obs').value, campanhaIds, turnoId: q<HTMLSelectElement>('turno').value || undefined }, novoId, hojeISO()); return res.erro; });
     const rr = res as ReturnType<typeof registrarDiasParados> | null;
     if (erro || !rr) { q<HTMLElement>('msg').innerHTML = aviso('critico', esc(erro ?? 'Erro.')); return; }
-    q<HTMLElement>('msg').innerHTML = aviso(rr.gravados ? 'info' : 'atencao', `${rr.gravados} dia(s) registrado(s) como sem aplicação.${rr.ignorados.length ? ` Não marcados (já têm aplicação): ${rr.ignorados.map((d) => esc(fmtData(d))).join(', ')}.` : ''}`);
-    if (rr.gravados) toast(`${rr.gravados} dia(s) sem aplicação registrado(s).`, 'ok');
+    const doTurno = q<HTMLSelectElement>('turno').value;
+    q<HTMLElement>('msg').innerHTML = aviso(rr.gravados ? 'info' : 'atencao', `${rr.gravados} ${doTurno ? `dia(s) com o ${esc(nome.turno(doTurno))} parado` : 'dia(s) registrado(s) como sem aplicação'}.${rr.ignorados.length ? ` Não marcados (${doTurno ? 'esse turno já tem aplicação gravada' : 'já têm aplicação'}): ${rr.ignorados.map((d) => esc(fmtData(d))).join(', ')}.` : ''}`);
+    if (rr.gravados) toast(doTurno ? `Parada do ${nome.turno(doTurno)} registrada.` : `${rr.gravados} dia(s) sem aplicação registrado(s).`, 'ok');
     lista();
   });
 }

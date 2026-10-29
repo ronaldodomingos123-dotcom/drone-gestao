@@ -17,6 +17,13 @@ import { abrirModal, esc, fmtData, fmtDataCurta, fmtHa, fmtNum, fmtPct } from '.
 import { icone } from '../ui/icons';
 import { abrirDetalheOperacao } from './aplicacoes';
 
+/** Fração de turnos parados no dia (ex.: 1 de 2 → ½). */
+function fracaoTurnos(n: number, total: number): string {
+  const f: Record<string, string> = { '1/2': '½', '1/3': '⅓', '2/3': '⅔', '1/4': '¼', '3/4': '¾' };
+  return f[`${n}/${total}`] ?? `${n} turno${n > 1 ? 's' : ''}`;
+}
+const motivoCurto = (m = '') => ({ 'Vento acima do limite': 'Vento', 'Umidade abaixo do limite': 'Umidade', 'Falha de equipamento': 'Equip.', 'Falta de insumos': 'Insumos', 'Problemas de equipe': 'Equipe' } as Record<string, string>)[m] ?? m.split(' ')[0];
+
 function kpi(o: { rotulo: string; valor: string; unidade?: string; sub?: string; icone: string; formula: string; tom?: 'ok' | 'atencao' | 'critico' | '' }) {
   return `<div class="kpi ${o.tom ? `kpi-${o.tom}` : ''}">
     <div class="kpi-topo"><span class="kpi-rot">${esc(o.rotulo)}</span><span class="kpi-ico">${icone(o.icone, 17)}</span></div>
@@ -133,10 +140,13 @@ function desenhar(corpo: HTMLElement) {
   const resDias = iniOp ? resumoDias(ds, maxData(f.de, iniOp), fimOp && fimOp < f.ate ? fimOp : f.ate, campsJanela.length ? campsJanela.map((c) => c.id) : null) : null;
   const marcaPorData = new Map<string, MarcaDia>();
   for (const d of resDias?.dias ?? []) {
-    if (d.tipo === 'parado') marcaPorData.set(d.data, { tipo: 'parado', motivo: d.motivo, observacao: d.observacao });
+    const turnos = d.turnosParados?.map((t) => ({ nome: nome.turno(t.turnoId) || 'Turno', motivo: t.motivo, observacao: t.observacao }));
+    if (d.tipo === 'parado') marcaPorData.set(d.data, { tipo: 'parado', motivo: d.motivo, observacao: d.observacao, turnos });
+    else if (d.tipo === 'aplicacao' && turnos?.length) marcaPorData.set(d.data, { tipo: 'parcial', motivo: turnos[0].motivo, turnos, rotulo: `${fracaoTurnos(turnos.length, ds.metas.turnosPorDia)} ${motivoCurto(turnos[0].motivo)}` });
     else if (d.tipo === 'sem_registro' && d.data < hojeD) marcaPorData.set(d.data, { tipo: 'sem_registro' });
   }
   const temMarcas = marcaPorData.size > 0;
+  const temParcial = [...marcaPorData.values()].some((x) => x.tipo === 'parcial');
   const diasRitmoMeta = ind.areaRestante > 0 ? safeDiv(ind.areaRestante, mDiaMedia) : 0;
   const dataMeta = diasRitmoMeta === null ? null : addDias(f.ate, Math.ceil(diasRitmoMeta));
 
@@ -192,7 +202,7 @@ function desenhar(corpo: HTMLElement) {
     </div>
 
     <div class="grade-graficos">
-      ${cartaoGrafico('g-dia', 'Área aplicada × planejado por dia', `Meta: ${fmtNum(mDiaMedia, 0)} ha/dia (${rotEscopo})${temMarcas ? ' · motivo nos dias sem aplicação' : ''}`, legenda([{ nome: 'Aplicado', cor: CORES.realizado }, { nome: 'Planejado (meta diária)', cor: CORES.planejado, tracejada: true }, ...(temMarcas ? [{ nome: 'Sem aplicação (motivo)', cor: '#e98a2b' }, { nome: 'Sem registro', cor: '#c7ced9' }] : [])]), 'largo')}
+      ${cartaoGrafico('g-dia', 'Área aplicada × planejado por dia', `Meta: ${fmtNum(mDiaMedia, 0)} ha/dia (${rotEscopo})${temMarcas ? ' · motivo nos dias sem aplicação' : ''}${temParcial ? ' · ½ = só um turno parado' : ''}`, legenda([{ nome: 'Aplicado', cor: CORES.realizado }, { nome: 'Planejado (meta diária)', cor: CORES.planejado, tracejada: true }, ...(temMarcas ? [{ nome: 'Sem aplicação (motivo)', cor: '#e98a2b' }, { nome: 'Sem registro', cor: '#c7ced9' }] : [])]), 'largo')}
       ${cartaoGrafico('g-motivos', 'Motivos de parada', 'Tempo parado por motivo no período · no relógio (drones parados juntos contam uma vez)')}
       ${cartaoGrafico('g-evolucao', 'Evolução da campanha e projeção', 'Acumulado real, projeção pelo ritmo real, ritmo planejado e total planejado', legenda([{ nome: 'Aplicada acumulada', cor: CORES.realizado }, { nome: 'Projeção (ritmo real)', cor: CORES.realizado, pontilhada: true }, { nome: 'Ritmo planejado (meta)', cor: CORES.operacional, tracejada: true }, { nome: 'Total planejado', cor: CORES.planejado, tracejada: true }]), 'largo')}
       ${cartaoGrafico('g-semana', 'Área aplicada × planejado por semana', `Meta: ${fmtNum(mDia * ds.metas.diasPorSemana, 0)} ha/semana · semanas parciais proporcionais`, legenda([{ nome: 'Aplicado', cor: CORES.realizado }, { nome: 'Planejado', cor: CORES.planejado, tracejada: true }]))}
@@ -219,7 +229,7 @@ function desenhar(corpo: HTMLElement) {
   const passo = (n: number) => Math.max(1, Math.ceil(n / 8));
   const dias = areaPorDia(areaPer, f.de, f.ate);
   barras(corpo.querySelector('#g-dia')!, dias.map((p) => ({ ...p, titulo: fmtData(p.rotulo) })), {
-    cor: CORES.realizado, unidade: 'ha', rotuloX: (r, i, n) => (i % passo(n) === 0 ? fmtDataCurta(r) : null),
+    cor: CORES.realizado, unidade: 'ha', rotuloX: (r) => fmtDataCurta(r), rotulosPorLargura: true,
     meta: { nome: 'Planejado', cor: CORES.planejado, valores: metasDia.map((x) => x.meta) },
     dias: temMarcas ? dias.map((p) => marcaPorData.get(p.rotulo) ?? null) : undefined,
   });

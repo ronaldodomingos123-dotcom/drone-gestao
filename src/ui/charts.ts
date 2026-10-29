@@ -85,7 +85,9 @@ export interface PontoG { rotulo: string; valor: number; titulo?: string }
 /** Barras verticais de série única. */
 export interface MetaBarras { nome: string; cor: string; valores: number[]; detalhe?: (i: number) => string }
 /** Marcação de um dia sem área: parado (com motivo) ou sem registro. */
-export interface MarcaDia { tipo: 'parado' | 'sem_registro'; motivo?: string; observacao?: string }
+export interface TurnoMarca { nome: string; motivo: string; observacao?: string }
+/** Marcação de um dia: parado (com motivo), sem registro, ou "parcial" (aplicou, mas algum turno ficou parado). */
+export interface MarcaDia { tipo: 'parado' | 'sem_registro' | 'parcial'; motivo?: string; observacao?: string; /** turnos parados no dia */ turnos?: TurnoMarca[]; /** texto curto embaixo da data no dia parcial (ex.: ½ Vento) */ rotulo?: string }
 
 const COR_PARADO = '#e98a2b', COR_PARADO_TXT = '#a55a0c', COR_SEM = '#8a95a8';
 /** Ícone (SVG, centrado em 0,0) do motivo de um dia parado. */
@@ -100,7 +102,7 @@ function iconeMotivo(motivo = ''): string {
 const curto = (m = '') => ({ 'Vento acima do limite': 'Vento', 'Umidade abaixo do limite': 'Umidade', 'Falha de equipamento': 'Equipamento', 'Falta de insumos': 'Insumos', 'Problemas de equipe': 'Equipe' } as Record<string, string>)[m] ?? m.split(' ')[0];
 
 /** Barras verticais de série única, com linha de meta (planejado) opcional em degraus tracejados. */
-export function barras(host: HTMLElement, pontos: PontoG[], o: { cor: string; unidade: string; rotuloX: (r: string, i: number, n: number) => string | null; altura?: number; casas?: number; meta?: MetaBarras; dias?: (MarcaDia | null)[] }) {
+export function barras(host: HTMLElement, pontos: PontoG[], o: { cor: string; unidade: string; rotuloX: (r: string, i: number, n: number) => string | null; altura?: number; casas?: number; meta?: MetaBarras; dias?: (MarcaDia | null)[]; /** pula rótulos do eixo X só quando não cabem (rotuloX deve devolver todos) */ rotulosPorLargura?: boolean }) {
   const temDias = !!o.dias?.some(Boolean);
   const H = (o.altura ?? 240) + (temDias ? 18 : 0);
   const casas = o.casas ?? 1;
@@ -119,6 +121,9 @@ export function barras(host: HTMLElement, pontos: PontoG[], o: { cor: string; un
     // poucos dias: valor em todas as barras e motivo escrito; muitos dias: só o maior valor e só o ícone
     const detalhado = pontos.length <= 31 && band >= 26;
     const rotuloLargo = band >= 52;
+    // rótulos de data: todos os dias quando cabem; senão, um a cada N (sempre incluindo o último dia)
+    const passoX = o.rotulosPorLargura ? Math.max(1, Math.ceil(40 / band)) : 1;
+    const mostraX = (i: number) => !o.rotulosPorLargura || passoX === 1 || (pontos.length - 1 - i) % passoX === 0;
     pontos.forEach((p, i) => {
       const cx = m.l + band * i + band / 2;
       const h = (p.valor / top) * ph;
@@ -140,17 +145,29 @@ export function barras(host: HTMLElement, pontos: PontoG[], o: { cor: string; un
         }
       }
       s += `<path class="g-marca" data-g="b${i}" d="${barraV(cx - bw / 2, m.t + ph - h, bw, h)}" fill="${o.cor}"/>`;
+      if (dm && dm.tipo === 'parcial' && p.valor > 0.005) {
+        // aplicou, mas algum turno ficou parado: ícone pequeno acima do valor + motivo embaixo da data
+        const r = Math.min(10, Math.max(7, band * 0.22));
+        const cy = Math.max(m.t + r + 1, y(p.valor) - (detalhado ? 24 : 8) - r);
+        s += `<g transform="translate(${cx},${cy}) scale(${r / 14})" pointer-events="none"><circle r="14" fill="#fdeedd" stroke="${COR_PARADO}"/>${iconeMotivo(dm.motivo)}</g>`;
+        if (detalhado) {
+          const txt = dm.rotulo ?? curto(dm.motivo);
+          const fs = rotuloLargo ? 0 : Math.max(8, Math.min(12, Math.floor((band - 5) / (txt.length * 0.6))));
+          s += `<text class="g-dia-mot" x="${cx}" y="${H - 6}" text-anchor="middle" fill="${COR_PARADO_TXT}"${fs ? ` style="font-size:${fs}px"` : ''}>${esc(txt)}</text>`;
+        }
+      }
       if (temDias && detalhado && p.valor > 0.005 && i !== imax) s += `<text class="g-rotulo g-rotulo-s" x="${cx}" y="${y(p.valor) - 6}" text-anchor="middle">${fmtNum(p.valor, p.valor < 100 ? 1 : 0)}</text>`;
       const rx = o.rotuloX(p.rotulo, i, pontos.length);
-      if (rx) s += `<text class="g-eixo" x="${cx}" y="${H - (temDias ? 26 : 10)}" text-anchor="middle">${esc(rx)}</text>`;
+      if (rx && mostraX(i)) s += `<text class="g-eixo" x="${cx}" y="${H - (temDias ? 26 : 10)}" text-anchor="middle">${esc(rx)}</text>`;
       const mt = o.meta?.valores[i];
       const tipMeta = o.meta && mt !== undefined
         ? `${tipLinha(o.meta.cor, o.meta.nome, `${fmtNum(mt, casas)} ${o.unidade}`)}<div class="tl">Atingido<b>${mt > 0 ? `${fmtNum((p.valor / mt) * 100, 0)}%` : '—'}</b></div>${o.meta.detalhe ? o.meta.detalhe(i) : ''}`
         : '';
       const dmi = o.dias?.[i];
+      const tipTurnos = (dmi?.turnos ?? []).map((t) => `<div class="tl">${esc(t.nome)} parado<b>${esc(t.motivo)}</b></div>${t.observacao ? `<div class="tl">Obs.<b>${esc(t.observacao)}</b></div>` : ''}`).join('');
       const tipDia = dmi && p.valor <= 0.005
-        ? (dmi.tipo === 'parado' ? `<div class="tl">Dia sem aplicação<b>${esc(dmi.motivo ?? '')}</b></div>${dmi.observacao ? `<div class="tl">Obs.<b>${esc(dmi.observacao)}</b></div>` : ''}` : '<div class="tl">Sem registro<b>nem aplicação nem dia parado</b></div>')
-        : '';
+        ? (dmi.tipo === 'parado' ? (tipTurnos || `<div class="tl">Dia sem aplicação<b>${esc(dmi.motivo ?? '')}</b></div>${dmi.observacao ? `<div class="tl">Obs.<b>${esc(dmi.observacao)}</b></div>` : ''}`) : '<div class="tl">Sem registro<b>nem aplicação nem dia parado</b></div>')
+        : dmi && dmi.tipo === 'parcial' ? tipTurnos : '';
       s += `<rect class="g-alvo" x="${m.l + band * i}" y="${m.t}" width="${band}" height="${ph}" data-grupo="b${i}" data-tip="${esc(`<div class="tt">${esc(p.titulo ?? p.rotulo)}</div>${tipDia}${tipLinha(o.cor, 'Aplicado', `${fmtNum(p.valor, casas)} ${o.unidade}`)}${tipMeta}`)}"/>`;
     });
     if (max > 0) {

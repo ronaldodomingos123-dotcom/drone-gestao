@@ -1046,6 +1046,8 @@ b.nv-ok { color: #1f7a45; } b.nv-aviso { color: #8a5a00; } b.nv-erro { color: #a
 .dia-cel.dia-apl { background: #e3f4ea; color: #1f6b3f; }
 .dia-cel.dia-par { background: #fdeedd; color: #8a4b00; }
 .dia-cel.dia-sem { background: #eef1f5; color: #6b778a; }
+.dia-cel .dia-turno { display: block; margin-top: 3px; font-style: normal; font-size: 10.5px; font-weight: 700; color: #a55a0c; line-height: 1.25; }
+.campo .link[data-acao="turno-parado"] { align-self: flex-start; margin-top: 4px; font-size: 12px; }
 .g-dia-mot { font-size: 11.5px; font-weight: 700; }
 .g-dia-sem { font-size: 11px; }
 .img-exp .g-dia-mot, .img-exp .g-dia-sem { font-size: 13px !important; }

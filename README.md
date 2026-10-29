@@ -157,6 +157,14 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Turno sem aplicação e datas no gráfico diário (v1.7.9)
+
+- **Fechamento do dia → "Dia/turno sem aplicação"** (ou o link "Este turno não aplicou? Lançar parada" embaixo do Turno da ficha): lançamento manual com **Abrangência** = dia inteiro ou só um turno. Só um turno pode ser lançado mesmo que o outro turno tenha aplicado no dia (ex.: vento no Turno A, Turno B aplicou); só é recusado se o próprio turno já tem voo gravado na data. Dia inteiro continua recusado em dia com aplicação.
+- Gravado em `diasParados` com o campo opcional `turnoId` (registros antigos sem ele = dia inteiro). Nada existente é alterado.
+- **Gráfico diário:** dia com aplicação e turno parado mantém a barra e ganha ícone do motivo acima do valor e "½ Vento" embaixo da data; o detalhe mostra o turno, o motivo e a observação. Dia sem área com só um turno registrado conta como parado.
+- **Datas do eixo:** todas as datas aparecem quando cabem (antes saía uma sim, uma não em períodos curtos); quando não cabem, o espaçamento termina sempre no último dia do período.
+- **Planejamento → Dias da campanha:** a célula do dia mostra "Turno A: Vento" abaixo da área.
+
 ## Motivo nos dias sem aplicação (v1.7.8)
 
 - **Gráfico "Área aplicada × planejado por dia"** (Dashboard): dia registrado como "Dia sem aplicação" ganha faixa laranja clara e ícone do motivo (chuva, vento, umidade/orvalho, manutenção/equipamento; outros = pausa). Dia passado sem nada lançado ganha "?" cinza ("sem registro"). Hoje ainda sem lançamento não é marcado. Só conta a janela da campanha filtrada.
