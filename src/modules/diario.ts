@@ -4,7 +4,8 @@
  */
 import { ultimo, formatarDuracao, intervaloDatas, produtividadeEfetiva, produtividadeOperacional, safeDiv } from '../domain/calc';
 import { datasComOperacao, editarObservacao, resumoDia, type FiltroDia } from '../domain/diario';
-import { editarEvento, excluirEvento } from '../domain/linhaTempo';
+import { adicionarParada, editarEvento, excluirEvento, voosNaHora } from '../domain/linhaTempo';
+import { novoId } from '../data/repository';
 import { MOTIVOS_PARADA, type MotivoParada } from '../domain/types';
 import { podeGravar } from '../data/nuvem';
 import { metaDiaria } from '../domain/metas';
@@ -24,6 +25,7 @@ import type { Relatorio } from '../domain/relatorios';
 const CHAVE = `${PREFIXO}diario`;
 let dia = '';
 let evAtuais: import('../domain/diario').EventoLinhaTempo[] = [];
+let opsAtuais: Operacao[] = [];
 let obsAtuais: { aeronave: string; texto: string; opIds: string[] }[] = [];
 let filtro: FiltroDia = { turnoId: '', liderId: '', campanhaId: '' };
 
@@ -52,6 +54,7 @@ export function renderDiario(raiz: HTMLElement) {
     if (ex) void exportarRelatorio(relDiario(), ex.dataset.exp as 'csv' | 'xlsx' | 'pdf', ex);
     const bev = (e.target as HTMLElement).closest('[data-ev-editar]') as HTMLElement | null;
     if (bev) { editarEventoTela(host, evAtuais[Number(bev.dataset.evEditar)]); return; }
+    if ((e.target as HTMLElement).closest('[data-ev-nova]')) { novaParadaTela(host); return; }
     const be = (e.target as HTMLElement).closest('[data-obs-editar],[data-obs-excluir]') as HTMLElement | null;
     if (be) { void acaoObservacao(host, be); return; }
     const bi = (e.target as HTMLElement).closest('[data-acao="imagem"]') as HTMLButtonElement | null;
@@ -72,7 +75,7 @@ export function renderDiario(raiz: HTMLElement) {
 function relDiario(): Relatorio {
   const { ds, idx } = estado;
   const r = resumoDia(ds, idx, dia, filtro);
-  obsAtuais = r.observacoes; evAtuais = r.eventos;
+  obsAtuais = r.observacoes; evAtuais = r.eventos; opsAtuais = r.ops;
   const meta = metaDiaria(ds.metas, { umDrone: false, umTurno: !!(filtro.turnoId || filtro.liderId) });
   const filtros = [filtro.campanhaId ? `Campanha: ${nome.campanha(filtro.campanhaId)}` : '', filtro.turnoId ? `Turno: ${nome.turno(filtro.turnoId)}` : '', filtro.liderId ? `Líder: ${nome.colaborador(filtro.liderId)}` : ''].filter(Boolean);
   const leitura = (l: LeituraClima | null) => (l ? `${l.hora} · ${l.temperaturaC ?? '—'} °C · UR ${l.umidadePct ?? '—'}% · vento ${l.ventoKmh ?? '—'} km/h` : '—');
@@ -107,7 +110,7 @@ function desenhar(host: HTMLElement) {
   try { localStorage.setItem(CHAVE, JSON.stringify({ dia, filtro })); } catch { /* opcional */ }
   const { ds, idx } = estado;
   const r = resumoDia(ds, idx, dia, filtro);
-  obsAtuais = r.observacoes; evAtuais = r.eventos;
+  obsAtuais = r.observacoes; evAtuais = r.eventos; opsAtuais = r.ops;
   const lim = ds.limites;
   const datas = datasComOperacao(ds, filtro);
   const iDia = datas.indexOf(dia);
@@ -196,7 +199,7 @@ function desenhar(host: HTMLElement) {
         ${r.observacoes.length ? `<ul class="dia-obs">${r.observacoes.map((o, i) => `<li><b>${esc(o.aeronave)}</b> ${esc(o.texto)}${podeGravar() ? `<span class="dia-obs-acoes" data-sem-exportar><button class="btn-icone" data-obs-editar="${i}" title="Editar observação" aria-label="Editar observação">${icone('config', 13)}</button><button class="btn-icone" data-obs-excluir="${i}" title="Excluir observação" aria-label="Excluir observação">${icone('lixo', 13)}</button></span>` : ''}</li>`).join('')}</ul>` : '<p class="vazio-txt">Sem observações digitadas neste dia.</p>'}
       </section>
       <section class="cartao">
-        <header class="cartao-cab"><div><h2 class="dia-tit">${icone('historico', 16)} Linha do tempo</h2><p>Gerada das paradas registradas · abastecimentos omitidos${podeGravar() ? '<span class="dia-dica" data-sem-exportar> · toque num evento para editar ou excluir</span>' : ''}</p></div></header>
+        <header class="cartao-cab"><div><h2 class="dia-tit">${icone('historico', 16)} Linha do tempo</h2><p>Gerada das paradas registradas · abastecimentos omitidos${podeGravar() ? '<span class="dia-dica" data-sem-exportar> · toque num evento para editar ou excluir</span>' : ''}</p></div>${podeGravar() && r.ops.some((o) => o.status !== 'impedida_clima') ? `<button class="btn btn-sec btn-peq" data-ev-nova data-sem-exportar>${icone('mais', 14)} Adicionar parada</button>` : ''}</header>
         <div class="dia-tempo ${podeGravar() ? 'editavel' : ''}">${r.eventos.map((ev, i) => `<div class="ev ev-${ev.tipo} ${ev.climatico ? 'ev-clima' : ''}" ${podeGravar() && ev.tipo !== 'impedida' ? `data-ev-editar="${i}" role="button" tabindex="0" title="Editar ou excluir"` : ''}>${podeGravar() && ev.tipo !== 'impedida' ? `<span class="ev-editar" data-sem-exportar aria-hidden="true">${icone('config', 12)}</span>` : ''}<span class="ev-ic">${icone(ev.tipo === 'inicio' ? 'dir' : ev.tipo === 'fim' ? 'ok' : ev.tipo === 'retomada' ? 'restaurar' : ev.tipo === 'impedida' ? 'alerta' : 'parada', 15)}</span><b>${esc(ev.hora)}</b><small>${esc(ev.aeronave)}</small><span class="ev-txt">${esc(ev.texto)}</span></div>`).join('')}</div>
       </section>
     </div>`;
@@ -292,5 +295,36 @@ function editarEventoTela(host: HTMLElement, ev: import('../domain/diario').Even
     const erro = alterar((ds) => excluirEvento(ds, ev.tipo, refs()));
     if (erro) { msg(erro); return; }
     m.fechar(); toast('Parada excluída.', 'ok'); desenhar(host);
+  });
+}
+
+/** Adicionar parada na linha do tempo: drones, hora, retomada (em branco = até o fim do voo), motivo e observação. */
+function novaParadaTela(host: HTMLElement) {
+  const ops = opsAtuais.filter((o) => o.status !== 'impedida_clima');
+  const drones = [...new Set(ops.map((o) => o.aeronaveId))];
+  if (!drones.length) return;
+  const voos = (aid: string) => ops.filter((o) => o.aeronaveId === aid).map((o) => `${o.horaInicio}–${o.horaFim}`).join(', ');
+  const m = abrirModal('Adicionar parada', `
+    <p class="nota">${esc(fmtData(dia))} · a parada entra no voo do drone que passa pelo horário informado.</p>
+    <fieldset class="campo"><legend>Drones</legend>${drones.map((aid) => `<label class="chk"><input type="checkbox" data-np-drone="${esc(aid)}" checked> ${esc(nome.aeronave(aid))} <small class="muted">(voo ${esc(voos(aid))})</small></label>`).join('')}</fieldset>
+    <div class="form-grade">
+      <label class="campo"><span>Hora da parada</span><input type="time" data-np-hora></label>
+      <label class="campo"><span>Hora da retomada</span><input type="time" data-np-ret><small class="muted">Em branco = parou até o fim do voo (fim de tarefa, troca de turno…)</small></label>
+      <label class="campo"><span>Motivo</span><select data-np-motivo>${MOTIVOS_PARADA.map((x) => `<option>${esc(x)}</option>`).join('')}</select></label>
+      <label class="campo"><span>Observação</span><input data-np-obs placeholder="opcional"></label>
+    </div>
+    <p class="nota">O tempo da parada sai do tempo efetivo do voo. Abastecimento/reabastecimento entra nos totais, mas não aparece na linha do tempo.</p>
+    <div data-np-msg></div>`,
+  { rodapeHTML: `<button class="btn btn-sec" data-fechar>Cancelar</button><button class="btn btn-pri" data-np-ok>Adicionar</button>` });
+  const q = <T extends HTMLElement>(s: string) => m.el.querySelector(s) as T;
+  q<HTMLButtonElement>('[data-np-ok]').addEventListener('click', () => {
+    const aids = [...m.el.querySelectorAll<HTMLInputElement>('[data-np-drone]:checked')].map((x) => x.dataset.npDrone!);
+    const hora = q<HTMLInputElement>('[data-np-hora]').value;
+    const v = voosNaHora(estado.ds, ops, aids, hora);
+    const msg = (t: string) => { q<HTMLElement>('[data-np-msg]').innerHTML = aviso('critico', esc(t)); };
+    if (v.erro) { msg(v.erro); return; }
+    const erro = alterar((ds) => adicionarParada(ds, v.opIds, { hora, horaRetomada: q<HTMLInputElement>('[data-np-ret]').value || undefined, motivo: q<HTMLSelectElement>('[data-np-motivo]').value as MotivoParada, observacoes: q<HTMLInputElement>('[data-np-obs]').value, responsavel: responsavelAtual() }, novoId));
+    if (erro) { msg(erro); return; }
+    m.fechar(); toast('Parada adicionada.', 'ok'); desenhar(host);
   });
 }

@@ -236,6 +236,10 @@ export type MotivoParada =
   | 'Problemas de equipe'
   | 'Falha de equipamento'
   | 'Deslocamento'
+  | 'Fim de tarefa'
+  | 'Troca de turno'
+  | 'Refeição/intervalo'
+  | 'Aguardando liberação'
   | 'Outros';
 
 export const MOTIVOS_PARADA: MotivoParada[] = [
@@ -249,6 +253,10 @@ export const MOTIVOS_PARADA: MotivoParada[] = [
   'Problemas de equipe',
   'Falha de equipamento',
   'Deslocamento',
+  'Fim de tarefa',
+  'Troca de turno',
+  'Refeição/intervalo',
+  'Aguardando liberação',
   'Outros',
 ];
 

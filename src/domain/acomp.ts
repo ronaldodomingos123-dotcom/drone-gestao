@@ -65,12 +65,16 @@ export function motivoDoTexto(t: string): MotivoParada {
   if (/vento|rajada/.test(x)) return 'Vento acima do limite';
   if (/chuva|garoa/.test(x)) return 'Chuva';
   if (/orvalho/.test(x)) return 'Orvalho';
+  if (/fim d[ae] tarefa/.test(x)) return 'Fim de tarefa';
+  if (/troca de turno/.test(x)) return 'Troca de turno';
+  if (/almoco|refeicao|janta|intervalo/.test(x)) return 'Refeição/intervalo';
   if (/mudanca de area|desloc|transporte|mudanca/.test(x)) return 'Deslocamento';
   if (/abastec|bateria|recarga|carga/.test(x)) return 'Abastecimento/reabastecimento';
   if (/manut/.test(x)) return 'Manutenção';
   if (/quebr|falha|defeito|pane|gerador/.test(x)) return 'Falha de equipamento';
   if (/insumo|produto|calda/.test(x)) return 'Falta de insumos';
   if (/equipe|operador|piloto/.test(x)) return 'Problemas de equipe';
+  if (/aguard|liberac/.test(x)) return 'Aguardando liberação';
   return 'Outros';
 }
 

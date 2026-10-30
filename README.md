@@ -157,6 +157,13 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Adicionar parada na linha do tempo (v1.7.10)
+
+- **Líder do turno → Linha do tempo → "Adicionar parada"** (Líder e Gestor): escolhe os drones, hora da parada, hora da retomada, motivo e observação. A parada entra no voo do drone que passa pelo horário (o drone pode ter mais de um voo no dia). **Retomada em branco = parou até o fim do voo** (fim de tarefa, troca de turno).
+- Recusa hora fora do voo e parada sobreposta a outra do mesmo voo. O tempo da parada sai do tempo efetivo do voo; excluir devolve. Tudo vai para a auditoria.
+- Editar e excluir continuam no toque sobre o evento (engrenagem).
+- **Motivos novos:** Fim de tarefa, Troca de turno, Refeição/intervalo, Aguardando liberação (também reconhecidos na importação do app de acompanhamento). Não são climáticos.
+
 ## Turno sem aplicação e datas no gráfico diário (v1.7.9)
 
 - **Fechamento do dia → "Dia/turno sem aplicação"** (ou o link "Este turno não aplicou? Lançar parada" embaixo do Turno da ficha): lançamento manual com **Abrangência** = dia inteiro ou só um turno. Só um turno pode ser lançado mesmo que o outro turno tenha aplicado no dia (ex.: vento no Turno A, Turno B aplicou); só é recusado se o próprio turno já tem voo gravado na data. Dia inteiro continua recusado em dia com aplicação.

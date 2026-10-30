@@ -95,3 +95,55 @@ export function excluirEvento(ds: Dataset, tipo: TipoEvento, refs: RefEvento[]):
   registrar(ds, { entidade: 'operacao', entidadeId: refs[0].opId, acao: 'excluir', resumo: `Parada excluída da linha do tempo: ${resumo.join('; ')}` });
   return null;
 }
+
+export interface NovaParada { hora: string; horaRetomada?: string; motivo: MotivoParada; observacoes?: string; responsavel: string }
+
+/**
+ * Adiciona uma parada nos voos escolhidos (um voo por drone). Retomada em branco = parada até o fim do voo
+ * (ex.: "Fim de tarefa", "Troca de turno"). Não pode sobrepor outra parada do mesmo voo. Desconta do efetivo.
+ */
+export function adicionarParada(ds: Dataset, opIds: string[], n: NovaParada, gerarId: (prefixo: string) => string): string | null {
+  if (!opIds.length) return 'Escolha ao menos um drone.';
+  if (!HORA.test(n.hora)) return 'Informe a hora da parada (HH:MM).';
+  if (n.horaRetomada && !HORA.test(n.horaRetomada)) return 'Hora da retomada inválida (HH:MM).';
+  const novas: { op: Operacao; ini: string; fim: string; dur: number; ac: string }[] = [];
+  for (const id of opIds) {
+    const op = ds.operacoes.find((o) => o.id === id);
+    if (!op) return 'Voo não encontrado. Atualize a tela.';
+    const ac = ds.aeronaves.find((a) => a.id === op.aeronaveId)?.identificacao ?? '—';
+    const tot = duracaoTotalMin(op.horaInicio, op.horaFim) ?? 0;
+    if (tot <= 0) return `${ac}: o voo não tem início e fim; corrija o horário antes.`;
+    const ini = isoNoVoo(op, n.hora);
+    const fim = isoNoVoo(op, n.horaRetomada || op.horaFim!);
+    const a = relVoo(op, ini), b = relVoo(op, fim);
+    if (a < 0 || a >= tot) return `${ac}: a parada tem que estar dentro do voo (${op.horaInicio}–${op.horaFim}).`;
+    if (b <= a || b > tot) return `${ac}: a retomada tem que ser depois da parada e até o fim do voo (${op.horaFim}).`;
+    for (const p of ds.paradas.filter((x) => x.operacaoId === op.id)) {
+      const pa = relVoo(op, p.inicio), pb = p.fim ? relVoo(op, p.fim) : tot;
+      if (a < pb && b > pa) return `${ac}: já existe parada ${p.inicio.slice(11, 16)}–${(p.fim ?? '').slice(11, 16) || 'fim'} (${p.motivo}) nesse horário. Edite ou exclua a outra antes.`;
+    }
+    novas.push({ op, ini, fim, dur: b - a, ac });
+  }
+  const obs = n.observacoes?.trim();
+  for (const x of novas) {
+    ds.paradas.push({ id: gerarId('par'), operacaoId: x.op.id, inicio: x.ini, fim: x.fim, motivo: n.motivo, ...(obs ? { observacoes: obs } : {}), responsavel: n.responsavel });
+    ajustarEfetivo(x.op, -x.dur);
+  }
+  registrar(ds, { entidade: 'operacao', entidadeId: novas[0].op.id, acao: 'editar', resumo: `Parada adicionada na linha do tempo: ${novas.map((x) => `${x.ac} ${x.ini.slice(11, 16)}–${x.fim.slice(11, 16)}`).join('; ')} · ${n.motivo}${obs ? ` (${obs})` : ''}` });
+  return null;
+}
+
+/** Para cada drone escolhido, o voo do dia que contém a hora (o drone pode ter mais de um voo no dia). */
+export function voosNaHora(ds: Dataset, opsDia: Operacao[], aeronaveIds: string[], hora: string): { opIds: string[]; erro: string | null } {
+  if (!aeronaveIds.length) return { opIds: [], erro: 'Escolha ao menos um drone.' };
+  if (!HORA.test(hora)) return { opIds: [], erro: 'Informe a hora da parada (HH:MM).' };
+  const opIds: string[] = [];
+  for (const aid of aeronaveIds) {
+    const ac = ds.aeronaves.find((a) => a.id === aid)?.identificacao ?? '—';
+    const cand = opsDia.filter((o) => o.aeronaveId === aid && o.status !== 'impedida_clima');
+    const op = cand.find((o) => { const tot = duracaoTotalMin(o.horaInicio, o.horaFim) ?? 0; const a = relVoo(o, isoNoVoo(o, hora)); return a >= 0 && a < tot; });
+    if (!op) return { opIds: [], erro: `${ac}: nenhum voo deste drone passa pelas ${hora} (${cand.map((o) => `${o.horaInicio}–${o.horaFim}`).join(', ') || 'sem voo no dia'}).` };
+    opIds.push(op.id);
+  }
+  return { opIds, erro: null };
+}
