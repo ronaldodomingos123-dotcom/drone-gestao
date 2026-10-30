@@ -1051,3 +1051,4 @@ b.nv-ok { color: #1f7a45; } b.nv-aviso { color: #8a5a00; } b.nv-erro { color: #a
 .g-dia-mot { font-size: 11.5px; font-weight: 700; }
 .g-dia-sem { font-size: 11px; }
 .img-exp .g-dia-mot, .img-exp .g-dia-sem { font-size: 13px !important; }
+.btn-perigo-txt { color: var(--critico); }

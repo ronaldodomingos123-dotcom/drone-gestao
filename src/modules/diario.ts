@@ -4,7 +4,7 @@
  */
 import { areaOperacao, ultimo, formatarDuracao, intervaloDatas, produtividadeEfetiva, produtividadeOperacional, safeDiv } from '../domain/calc';
 import { datasComOperacao, editarObservacao, resumoDia, type FiltroDia } from '../domain/diario';
-import { adicionarParada, editarEvento, excluirEvento, excluirVoos, voosNaHora } from '../domain/linhaTempo';
+import { adicionarParada, conteudoTurnoDia, editarEvento, excluirEvento, excluirTurnoDia, excluirVoos, voosNaHora } from '../domain/linhaTempo';
 import { novoId } from '../data/repository';
 import { MOTIVOS_PARADA, type MotivoParada } from '../domain/types';
 import { podeGravar } from '../data/nuvem';
@@ -55,6 +55,7 @@ export function renderDiario(raiz: HTMLElement) {
     const bev = (e.target as HTMLElement).closest('[data-ev-editar]') as HTMLElement | null;
     if (bev) { editarEventoTela(host, evAtuais[Number(bev.dataset.evEditar)]); return; }
     if ((e.target as HTMLElement).closest('[data-ev-nova]')) { novaParadaTela(host); return; }
+    if ((e.target as HTMLElement).closest('[data-turno-excluir]')) { excluirTurnoTela(host); return; }
     const be = (e.target as HTMLElement).closest('[data-obs-editar],[data-obs-excluir]') as HTMLElement | null;
     if (be) { void acaoObservacao(host, be); return; }
     const bi = (e.target as HTMLElement).closest('[data-acao="imagem"]') as HTMLButtonElement | null;
@@ -225,6 +226,7 @@ function desenhar(host: HTMLElement) {
       <button class="btn btn-sec btn-peq" data-nav="ultimo">${icone('calendario', 15)} Último dia</button>
       <button class="btn btn-sec btn-peq" data-acao="imagem">${icone('camadas', 15)} Exportar imagem</button>
       <button class="btn btn-sec btn-peq" data-acao="imprimir">${icone('relatorio', 15)} Imprimir</button>
+      ${podeGravar() && estado.ds.operacoes.some((o) => o.data === dia) ? `<button class="btn btn-sec btn-peq btn-perigo-txt" data-turno-excluir>${icone('lixo', 15)} Excluir turno</button>` : ''}
       ${botoesExportar()}
     </div>
     ${corpo}
@@ -341,5 +343,42 @@ function novaParadaTela(host: HTMLElement) {
     const erro = alterar((ds) => adicionarParada(ds, v.opIds, { hora, horaRetomada: q<HTMLInputElement>('[data-np-ret]').value || undefined, motivo: q<HTMLSelectElement>('[data-np-motivo]').value as MotivoParada, observacoes: q<HTMLInputElement>('[data-np-obs]').value, responsavel: responsavelAtual() }, novoId));
     if (erro) { msg(erro); return; }
     m.fechar(); toast('Parada adicionada.', 'ok'); desenhar(host);
+  });
+}
+
+/** Excluir o turno inteiro do dia (voos, paradas e "turno sem aplicação") para refazer no Fechamento do dia. */
+function excluirTurnoTela(host: HTMLElement) {
+  const ds = estado.ds;
+  const turnos = [...new Set(ds.operacoes.filter((o) => o.data === dia).map((o) => o.turnoId ?? ''))];
+  if (!turnos.length) return;
+  const rot = (t: string) => (t ? nome.turno(t) : 'Sem turno');
+  const ini = filtro.turnoId && turnos.includes(filtro.turnoId) ? filtro.turnoId : turnos[0];
+  const lista = (t: string) => {
+    const c = conteudoTurnoDia(ds, dia, t);
+    return `<div class="aviso aviso-critico">${icone('alerta', 18)}<div>Vai apagar do dia <b>${esc(fmtData(dia))}</b>, turno <b>${esc(rot(t))}</b>:
+      <ul>${c.ops.map((o) => `<li><b>${esc(nome.aeronave(o.aeronaveId))}</b> ${esc(o.horaInicio)}–${esc(o.horaFim ?? '…')} · ${esc(nome.os(o.osId))} · ${esc(fmtHa(areaOperacao(o), 2))}</li>`).join('')}</ul>
+      Total: <b>${c.ops.length} voo(s) · ${esc(fmtHa(c.area, 2))}</b> · ${c.paradas.length} parada(s)${c.diasParados.length ? ` · ${c.diasParados.length} registro(s) de turno sem aplicação` : ''}, com as observações desses voos. Os outros turnos do dia não mudam.</div></div>`;
+  };
+  const m = abrirModal('Excluir turno do dia', `
+    <label class="campo"><span>Turno</span><select data-tx-turno>${turnos.map((t) => `<option value="${esc(t)}" ${t === ini ? 'selected' : ''}>${esc(rot(t))}</option>`).join('')}</select></label>
+    <div data-tx-lista>${lista(ini)}</div>
+    <label class="campo"><span>Motivo da exclusão</span><textarea data-tx-mot rows="2" placeholder="Ex.: ficha lançada errada, vou refazer"></textarea></label>
+    <label class="chk"><input type="checkbox" data-tx-ok> Entendi: esses voos e hectares saem do acumulado até eu lançar de novo</label>
+    <p class="nota">Fica guardado na auditoria e nas versões anteriores da nuvem. Depois, refaça em <b>Fechamento do dia</b>.</p>
+    <div data-tx-msg></div>`,
+  { rodapeHTML: `<button class="btn btn-sec" data-fechar>Cancelar</button><button class="btn btn-perigo" data-tx-excluir>Excluir turno</button>` });
+  const q = <T extends HTMLElement>(sel: string) => m.el.querySelector(sel) as T;
+  q<HTMLSelectElement>('[data-tx-turno]').addEventListener('change', (e) => { q<HTMLElement>('[data-tx-lista]').innerHTML = lista((e.target as HTMLSelectElement).value); });
+  q<HTMLButtonElement>('[data-tx-excluir]').addEventListener('click', () => {
+    const msg = (t: string) => { q<HTMLElement>('[data-tx-msg]').innerHTML = aviso('critico', esc(t)); };
+    if (!q<HTMLInputElement>('[data-tx-ok]').checked) { msg('Marque a confirmação para excluir.'); return; }
+    const t = q<HTMLSelectElement>('[data-tx-turno]').value;
+    const erro = alterar((d) => excluirTurnoDia(d, dia, t, q<HTMLTextAreaElement>('[data-tx-mot]').value));
+    if (erro) { msg(erro); return; }
+    m.fechar(); toast(`Turno ${rot(t)} de ${fmtData(dia)} excluído. Refaça em Fechamento do dia.`, 'ok');
+    const r = abrirModal('Turno excluído', `<p>O turno <b>${esc(rot(t))}</b> de <b>${esc(fmtData(dia))}</b> foi apagado. Quer lançar de novo agora?</p>`,
+      { rodapeHTML: `<button class="btn btn-sec" data-fechar>Depois</button><a class="btn btn-pri" href="#/fechamento" data-tx-ir>Ir para Fechamento do dia</a>` });
+    r.el.querySelector('[data-tx-ir]')!.addEventListener('click', () => r.fechar());
+    desenhar(host);
   });
 }

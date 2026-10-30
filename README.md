@@ -157,6 +157,12 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Excluir turno do dia (v1.7.12)
+
+- **Líder do turno → barra do dia → "Excluir turno"** (Líder e Gestor): escolhe o turno da data e vê a prévia (voos com drone, horário, OS e ha; total de ha; paradas; registro de "turno sem aplicação"). Pede motivo e a confirmação "esses hectares saem do acumulado até eu lançar de novo".
+- Apaga só aquele turno naquela data: voos que começaram no dia, suas paradas e observações, e o "turno sem aplicação" do mesmo turno. Outros turnos e outros dias não mudam. Lançamentos de área sem voo (sem turno) não entram.
+- Fica na auditoria com tudo o que saiu e nas versões anteriores da nuvem. Ao terminar, oferece ir para **Fechamento do dia** para lançar de novo.
+
 ## Linha do tempo: excluir voo e ordem no mesmo minuto (v1.7.11)
 
 - Tocar em **Início** ou **Fim da aplicação** agora mostra **"Excluir voo"**: apaga o voo inteiro dos drones marcados (área, horário e paradas), com confirmação que lista voo e área e pede o motivo. Fica na auditoria (com o registro anterior) e nas versões anteriores da nuvem.

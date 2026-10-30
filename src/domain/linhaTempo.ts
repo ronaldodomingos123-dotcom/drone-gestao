@@ -163,3 +163,26 @@ export function excluirVoos(ds: Dataset, opIds: string[], motivo: string): strin
   }
   return null;
 }
+
+/** O que sai ao excluir um turno de um dia: voos do turno que começaram na data, suas paradas e o "turno sem aplicação" do mesmo turno/data. */
+export function conteudoTurnoDia(ds: Dataset, data: string, turnoId: string) {
+  const ops = ds.operacoes.filter((o) => o.data === data && (o.turnoId ?? '') === turnoId);
+  const ids = new Set(ops.map((o) => o.id));
+  const paradas = ds.paradas.filter((p) => ids.has(p.operacaoId));
+  const diasParados = (ds.diasParados ?? []).filter((d) => d.data === data && !!turnoId && d.turnoId === turnoId);
+  return { ops, paradas, diasParados, area: ops.reduce((s, o) => s + areaOperacao(o), 0) };
+}
+
+/** Exclui o turno inteiro de um dia (para refazer o fechamento). Fica na auditoria com tudo o que saiu. */
+export function excluirTurnoDia(ds: Dataset, data: string, turnoId: string, motivo: string): string | null {
+  if (!motivo.trim()) return 'Informe o motivo da exclusão.';
+  const c = conteudoTurnoDia(ds, data, turnoId);
+  if (!c.ops.length && !c.diasParados.length) return 'Nada lançado neste turno nesta data.';
+  const ids = new Set(c.ops.map((o) => o.id)), dps = new Set(c.diasParados.map((d) => d.id));
+  ds.operacoes = ds.operacoes.filter((o) => !ids.has(o.id));
+  ds.paradas = ds.paradas.filter((p) => !ids.has(p.operacaoId));
+  if (ds.diasParados) ds.diasParados = ds.diasParados.filter((d) => !dps.has(d.id));
+  const turno = ds.turnos.find((t) => t.id === turnoId)?.nome ?? 'sem turno';
+  registrar(ds, { entidade: 'operacao', entidadeId: c.ops[0]?.id ?? data, acao: 'excluir', resumo: `Turno excluído: ${turno} em ${data} · ${c.ops.length} voo(s), ${c.area.toFixed(2).replace('.', ',')} ha, ${c.paradas.length} parada(s)${c.diasParados.length ? `, ${c.diasParados.length} registro(s) de turno sem aplicação` : ''}`, motivo: motivo.trim(), antes: { operacoes: c.ops, paradas: c.paradas, diasParados: c.diasParados } });
+  return null;
+}
