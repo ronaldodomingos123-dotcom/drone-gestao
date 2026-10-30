@@ -157,10 +157,12 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
-## ha/h do Diário na mesma base (v1.7.13)
+## ha/h do Diário no relógio da operação (v1.7.14; corrige a v1.7.13)
 
-- **ha/h efetivo** e **ha/h da jornada** do Líder do turno passam a usar a mesma base: por drone e só a área com voo. Efetivo = área ÷ horas aplicando (soma dos drones); jornada = área ÷ horas de voo com paradas (soma dos drones). Assim o efetivo nunca fica menor que o da jornada.
-- Antes, a jornada usava o relógio (07:00–17:00, os dois drones juntos) e o efetivo era por drone: 162,3 ÷ 10 h = 16,23 contra 14,99 — bases diferentes, comparação errada. Também entra no relatório exportado do Diário.
+- **ha/h efetivo** = área com voo ÷ **efetivo da operação** (tempo em que pelo menos um drone aplicava; drones juntos contam uma vez). Ex.: 162,34 ÷ 5h20 (5,33 h) = 30,44.
+- **ha/h da jornada** = área com voo ÷ **jornada** no relógio (1º início ao último fim, com paradas). Ex.: 162,34 ÷ 10h = 16,23.
+- O ha/h por drone (área ÷ soma das horas aplicando dos drones) continua só como referência embaixo do efetivo e no relatório exportado.
+- A v1.7.13 tinha passado a jornada para "por drone" (8,12) — errado para o que o cartão representa; desfeito aqui.
 
 ## Excluir turno do dia (v1.7.12)
 

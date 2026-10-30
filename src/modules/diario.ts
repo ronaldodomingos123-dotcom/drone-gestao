@@ -83,7 +83,7 @@ function relDiario(): Relatorio {
   return {
     id: 'diario', titulo: `Diário de aplicações — ${fmtData(dia)}`, periodo: { de: dia, ate: dia }, filtros: filtros.length ? filtros : ['Sem filtros'],
     geradoEm: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString(), responsavel: responsavelAtual(),
-    indicadores: [{ rotulo: 'Área do dia', valor: r.areaDia, tipo: 'ha' }, { rotulo: 'Meta do dia', valor: meta, tipo: 'ha' }, { rotulo: 'ha/h efetivo (por drone)', valor: produtividadeEfetiva(r.areaDia - r.areaLancadaDia, r.minEfetivoSoma), tipo: 'hah' }, { rotulo: 'ha/h da jornada (por drone, com paradas)', valor: produtividadeOperacional(r.areaDia - r.areaLancadaDia, r.minTotalSoma), tipo: 'hah' }, { rotulo: 'Jornada', valor: r.jornadaMin, tipo: 'min' }, { rotulo: 'Efetivo da operação', valor: r.minEfetivoOperacao, tipo: 'min' }, { rotulo: 'Parado (relógio)', valor: r.minParadoOperacao, tipo: 'min' }, { rotulo: 'Acumulado da campanha', valor: r.acumuladoAteDia, tipo: 'ha' }, { rotulo: 'Executado', valor: safeDiv(r.acumuladoAteDia * 100, r.planejadoEscopo), tipo: 'pct' }],
+    indicadores: [{ rotulo: 'Área do dia', valor: r.areaDia, tipo: 'ha' }, { rotulo: 'Meta do dia', valor: meta, tipo: 'ha' }, { rotulo: 'ha/h efetivo (operação)', valor: produtividadeEfetiva(r.areaDia - r.areaLancadaDia, r.minEfetivoOperacao), tipo: 'hah' }, { rotulo: 'ha/h da jornada', valor: produtividadeOperacional(r.areaDia - r.areaLancadaDia, r.jornadaMin), tipo: 'hah' }, { rotulo: 'ha/h efetivo por drone', valor: produtividadeEfetiva(r.areaDia - r.areaLancadaDia, r.minEfetivoSoma), tipo: 'hah' }, { rotulo: 'Jornada', valor: r.jornadaMin, tipo: 'min' }, { rotulo: 'Efetivo da operação', valor: r.minEfetivoOperacao, tipo: 'min' }, { rotulo: 'Parado (relógio)', valor: r.minParadoOperacao, tipo: 'min' }, { rotulo: 'Acumulado da campanha', valor: r.acumuladoAteDia, tipo: 'ha' }, { rotulo: 'Executado', valor: safeDiv(r.acumuladoAteDia * 100, r.planejadoEscopo), tipo: 'pct' }],
     secoes: [
       { titulo: 'Resumo do dia', ficha: true, colunas: [{ titulo: 'Campo', tipo: 'texto' }, { titulo: 'Valor', tipo: 'texto' }], linhas: [
         ['Início / fim', `${hhmm(r.inicioMin)} – ${hhmm(r.fimMin)}`], ['Turnos', r.turnos.map(nome.turno).join(', ') || '—'], ['Líderes', r.lideres.map(nome.colaborador).join(', ') || '—'],
@@ -118,11 +118,12 @@ function desenhar(host: HTMLElement) {
   const opt = (v: string, t: string, sel: string) => `<option value="${esc(v)}" ${v === sel ? 'selected' : ''}>${esc(t)}</option>`;
   const lideres = ds.colaboradores.filter((c) => c.funcao === 'Líder de turno');
 
-  // mesma base nos dois (por drone, só área com voo): efetivo = área ÷ horas aplicando; jornada = área ÷ horas de voo com paradas.
-  // Assim o efetivo nunca fica abaixo do da jornada (antes a jornada era a do relógio, com os drones juntos).
+  // ha/h da OPERAÇÃO (frente), no relógio: efetivo = área ÷ tempo em que pelo menos um drone aplicava (drones juntos contam uma vez);
+  // jornada = área ÷ jornada (1º início ao último fim). Por drone fica só como referência embaixo.
   const areaVoos = r.areaDia - r.areaLancadaDia;
-  const prodEf = produtividadeEfetiva(areaVoos, r.minEfetivoSoma);
-  const prodJornada = produtividadeOperacional(areaVoos, r.minTotalSoma);
+  const prodEf = produtividadeEfetiva(areaVoos, r.minEfetivoOperacao);
+  const prodJornada = produtividadeOperacional(areaVoos, r.jornadaMin);
+  const prodEfDrone = produtividadeEfetiva(areaVoos, r.minEfetivoSoma);
   const meta = metaDiaria(ds.metas, { umDrone: false, umTurno: !!(filtro.turnoId || filtro.liderId) });
   const pctMeta = safeDiv(r.areaDia * 100, meta);
 
@@ -147,8 +148,8 @@ function desenhar(host: HTMLElement) {
       <div class="dia-kpi"><span class="dia-ic laranja">${icone('relogio', 18)}</span><div><span class="dia-rot">Hora final</span><b>${esc(hhmm(r.fimMin))}${r.fimMin !== null && r.fimMin >= 1440 ? '<small> +1 dia</small>' : ''}</b><small>Término das atividades</small></div></div>
       <div class="dia-kpi"><span class="dia-ic">${icone('velocidade', 18)}</span><div><span class="dia-rot">Jornada</span><b>${esc(formatarDuracao(r.jornadaMin))}</b><small>Do 1º início ao último fim</small></div></div>
       <div class="dia-kpi"><span class="dia-ic verde">${icone('area', 18)}</span><div><span class="dia-rot">Aplicação do dia</span><b>${esc(fmtNum(r.areaDia, 1))}<small>ha</small></b><small>meta ${esc(fmtNum(meta, 0))} ha · ${esc(fmtPct(pctMeta, 0))}</small></div></div>
-      <div class="dia-kpi"><span class="dia-ic">${icone('aplicacao', 18)}</span><div><span class="dia-rot">ha/h efetivo</span><b>${esc(fmtNum(prodEf, 2))}<small>ha/h</small></b><small>por drone, sem paradas</small></div></div>
-      <div class="dia-kpi"><span class="dia-ic">${icone('parada', 18)}</span><div><span class="dia-rot">ha/h da jornada</span><b>${esc(fmtNum(prodJornada, 2))}<small>ha/h</small></b><small>por drone, com paradas</small></div></div>
+      <div class="dia-kpi"><span class="dia-ic">${icone('aplicacao', 18)}</span><div><span class="dia-rot">ha/h efetivo</span><b>${esc(fmtNum(prodEf, 2))}<small>ha/h</small></b><small>área ÷ efetivo da operação (${esc(formatarDuracao(r.minEfetivoOperacao))}) · por drone ${esc(fmtNum(prodEfDrone, 2))}</small></div></div>
+      <div class="dia-kpi"><span class="dia-ic">${icone('parada', 18)}</span><div><span class="dia-rot">ha/h da jornada</span><b>${esc(fmtNum(prodJornada, 2))}<small>ha/h</small></b><small>área ÷ jornada (${esc(formatarDuracao(r.jornadaMin))}, com paradas)</small></div></div>
     </section>
 
     <section class="cartao dia-linha clima">

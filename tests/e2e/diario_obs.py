@@ -37,7 +37,7 @@ with sync_playwright() as p:
     tempos = pg.locator('.dia-tempos').inner_text()
     ok(f'efetivo da operação conta os drones simultâneos uma vez (7h 00min; o somado por drone fica à parte): {tempos!r}', 'Efetivo da operação 7h 00min' in tempos.replace('\n', ' ') and 'Parado 30min' in tempos.replace('\n', ' ') and 'por drone (somado): efetivo 4h 00min' in tempos)
     kp = pg.locator('#diario').inner_text().replace('\n', ' ')
-    ok('ha/h na mesma base (por drone): efetivo 54,88÷4h = 13,72 ≥ jornada 54,88÷15h = 3,66', 'ha/h efetivo 13,72' in kp.lower().replace('ha/h efetivo ', 'ha/h efetivo ') and '3,66' in kp)
+    ok(f'ha/h da operação no relógio: efetivo 54,88÷7h = 7,84 · jornada 54,88÷7h30 = 7,32 · por drone 13,72 embaixo', 'ha/h efetivo 7,84' in kp.lower() and 'efetivo da operação (7h 00min)' in kp and 'por drone 13,72' in kp and 'ha/h da jornada 7,32' in kp.lower() and 'jornada (7h 30min, com paradas)' in kp)
     obs = pg.locator('.dia-obs li')
     t = pg.locator('.dia-obs').inner_text()
     ok('observações: uma só, com os dois drones, sem "Encerramento:" nem nota automática', obs.count() == 1 and 'T70-P DR-01, T70-P DR-02' in t and 'Vento acima do limite · fim do turno às 23h20' in t and 'Encerramento' not in t and 'Fechamento do dia' not in pg.locator('#diario').inner_text())
