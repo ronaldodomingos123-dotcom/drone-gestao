@@ -157,6 +157,11 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## ha/h do Diário na mesma base (v1.7.13)
+
+- **ha/h efetivo** e **ha/h da jornada** do Líder do turno passam a usar a mesma base: por drone e só a área com voo. Efetivo = área ÷ horas aplicando (soma dos drones); jornada = área ÷ horas de voo com paradas (soma dos drones). Assim o efetivo nunca fica menor que o da jornada.
+- Antes, a jornada usava o relógio (07:00–17:00, os dois drones juntos) e o efetivo era por drone: 162,3 ÷ 10 h = 16,23 contra 14,99 — bases diferentes, comparação errada. Também entra no relatório exportado do Diário.
+
 ## Excluir turno do dia (v1.7.12)
 
 - **Líder do turno → barra do dia → "Excluir turno"** (Líder e Gestor): escolhe o turno da data e vê a prévia (voos com drone, horário, OS e ha; total de ha; paradas; registro de "turno sem aplicação"). Pede motivo e a confirmação "esses hectares saem do acumulado até eu lançar de novo".
