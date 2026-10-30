@@ -157,6 +157,11 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Linha do tempo: excluir voo e ordem no mesmo minuto (v1.7.11)
+
+- Tocar em **Início** ou **Fim da aplicação** agora mostra **"Excluir voo"**: apaga o voo inteiro dos drones marcados (área, horário e paradas), com confirmação que lista voo e área e pede o motivo. Fica na auditoria (com o registro anterior) e nas versões anteriores da nuvem.
+- **Ordem no mesmo minuto:** retomada → fim do voo anterior → início do voo seguinte → parada que começa junto. Antes, "Início 12:34" aparecia antes de "Fim 12:34".
+
 ## Adicionar parada na linha do tempo (v1.7.10)
 
 - **Líder do turno → Linha do tempo → "Adicionar parada"** (Líder e Gestor): escolhe os drones, hora da parada, hora da retomada, motivo e observação. A parada entra no voo do drone que passa pelo horário (o drone pode ter mais de um voo no dia). **Retomada em branco = parou até o fim do voo** (fim de tarefa, troca de turno).

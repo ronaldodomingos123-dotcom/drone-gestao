@@ -6,7 +6,7 @@
  * Ao mudar horários, o tempo efetivo do voo é ajustado pela diferença (sem passar da jornada do voo).
  */
 import { registrar } from './base';
-import { addDias, duracaoParadaMin, duracaoTotalMin, hhmmParaMin, isoLocalParaMin } from './calc';
+import { addDias, areaOperacao, duracaoParadaMin, duracaoTotalMin, hhmmParaMin, isoLocalParaMin } from './calc';
 import type { Dataset, MotivoParada, Operacao } from './types';
 
 export type TipoEvento = 'inicio' | 'pausa' | 'retomada' | 'fim' | 'impedida';
@@ -146,4 +146,20 @@ export function voosNaHora(ds: Dataset, opsDia: Operacao[], aeronaveIds: string[
     opIds.push(op.id);
   }
   return { opIds, erro: null };
+}
+
+/** Exclui os voos inteiros (área e paradas) dos drones escolhidos — pelo início/fim da linha do tempo. Fica na auditoria (com o antes). */
+export function excluirVoos(ds: Dataset, opIds: string[], motivo: string): string | null {
+  if (!opIds.length) return 'Escolha ao menos um drone.';
+  if (!motivo.trim()) return 'Informe o motivo da exclusão.';
+  for (const id of opIds) {
+    const op = ds.operacoes.find((o) => o.id === id);
+    if (!op) return 'Voo não encontrado. Atualize a tela.';
+    const antes = { operacao: op, paradas: ds.paradas.filter((p) => p.operacaoId === id) };
+    ds.operacoes = ds.operacoes.filter((o) => o.id !== id);
+    ds.paradas = ds.paradas.filter((p) => p.operacaoId !== id);
+    const ac = ds.aeronaves.find((a) => a.id === op.aeronaveId)?.identificacao ?? '—';
+    registrar(ds, { entidade: 'operacao', entidadeId: id, acao: 'excluir', resumo: `Voo excluído pela linha do tempo: ${ac} ${op.data} ${op.horaInicio}–${op.horaFim ?? '…'} · ${areaOperacao(op).toFixed(2).replace('.', ',')} ha`, motivo: motivo.trim(), antes });
+  }
+  return null;
 }

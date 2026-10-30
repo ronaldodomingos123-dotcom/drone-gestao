@@ -121,7 +121,8 @@ export function resumoDia(ds: Dataset, idx: Indices, data: string, f: FiltroDia)
     eventos.push({ minutoAbs: fim, hora: hhmm(fim), tipo: 'fim', texto: 'Fim da aplicação', aeronave: ac, climatico: false, refs: [{ opId: op.id, aeronave: ac }] });
   }
   // mesmo evento, mesma hora, em vários drones → um só item com os drones juntos (mesmo que intercalados)
-  const ORDEM_EV: Record<string, number> = { inicio: 0, impedida: 0, pausa: 1, retomada: 2, fim: 3 };
+  // no mesmo minuto: retomada e fim do voo anterior vêm antes do início do voo seguinte; o início vem antes de uma parada que começa junto
+  const ORDEM_EV: Record<string, number> = { retomada: 0, fim: 1, inicio: 2, impedida: 2, pausa: 3 };
   const juntos = new Map<string, EventoLinhaTempo>();
   for (const ev of eventos) {
     const k = `${ev.minutoAbs}|${ev.tipo}|${ev.texto}`;

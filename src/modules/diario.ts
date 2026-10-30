@@ -2,9 +2,9 @@
  * Diário de aplicações — mesma organização da tela de Acompanhamento Diário já usada em campo,
  * mas montada automaticamente a partir dos registros de operação.
  */
-import { ultimo, formatarDuracao, intervaloDatas, produtividadeEfetiva, produtividadeOperacional, safeDiv } from '../domain/calc';
+import { areaOperacao, ultimo, formatarDuracao, intervaloDatas, produtividadeEfetiva, produtividadeOperacional, safeDiv } from '../domain/calc';
 import { datasComOperacao, editarObservacao, resumoDia, type FiltroDia } from '../domain/diario';
-import { adicionarParada, editarEvento, excluirEvento, voosNaHora } from '../domain/linhaTempo';
+import { adicionarParada, editarEvento, excluirEvento, excluirVoos, voosNaHora } from '../domain/linhaTempo';
 import { novoId } from '../data/repository';
 import { MOTIVOS_PARADA, type MotivoParada } from '../domain/types';
 import { podeGravar } from '../data/nuvem';
@@ -277,9 +277,9 @@ function editarEventoTela(host: HTMLElement, ev: import('../domain/diario').Even
       ${ev.tipo === 'pausa' ? `<label class="campo"><span>Motivo</span><select data-ev-motivo>${MOTIVOS_PARADA.map((x) => `<option ${x === p0?.motivo ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
       <label class="campo"><span>Observação da parada</span><input data-ev-obs value="${esc(p0?.observacoes ?? '')}"></label>` : ''}
     </div>
-    <p class="nota">${ehParada ? 'Mudar o horário da parada ajusta o tempo efetivo do voo. <b>Excluir</b> remove a parada inteira (parada e retomada).' : 'Mudar o horário do voo ajusta a jornada e o tempo efetivo. Para apagar o voo, use Aplicações.'}</p>
+    <p class="nota">${ehParada ? 'Mudar o horário da parada ajusta o tempo efetivo do voo. <b>Excluir</b> remove a parada inteira (parada e retomada).' : 'Mudar o horário do voo ajusta a jornada e o tempo efetivo. <b>Excluir voo</b> apaga o voo inteiro dos drones marcados (área, horário e paradas).'}</p>
     <div data-ev-msg></div>`,
-  { rodapeHTML: `<button class="btn btn-sec" data-fechar>Cancelar</button>${ehParada ? '<button class="btn btn-perigo" data-ev-excluir>Excluir parada</button>' : ''}<button class="btn btn-pri" data-ev-ok>Salvar</button>` });
+  { rodapeHTML: `<button class="btn btn-sec" data-fechar>Cancelar</button>${ehParada ? '<button class="btn btn-perigo" data-ev-excluir>Excluir parada</button>' : '<button class="btn btn-perigo" data-ev-excluir-voo>Excluir voo</button>'}<button class="btn btn-pri" data-ev-ok>Salvar</button>` });
   const refs = () => [...m.el.querySelectorAll<HTMLInputElement>('[data-ev-ref]:checked')].map((x) => ev.refs[Number(x.dataset.evRef)]);
   const msg = (t: string) => { (m.el.querySelector('[data-ev-msg]') as HTMLElement).innerHTML = aviso('critico', esc(t)); };
   m.el.querySelector('[data-ev-ok]')!.addEventListener('click', () => {
@@ -289,6 +289,21 @@ function editarEventoTela(host: HTMLElement, ev: import('../domain/diario').Even
     const erro = alterar((ds) => editarEvento(ds, ev.tipo, refs(), { hora: hora !== ev.hora ? hora : undefined, motivo, observacoes: obs }));
     if (erro) { msg(erro); return; }
     m.fechar(); toast('Linha do tempo atualizada.', 'ok'); desenhar(host);
+  });
+  m.el.querySelector('[data-ev-excluir-voo]')?.addEventListener('click', () => {
+    const rs = refs();
+    if (!rs.length) { msg('Escolha ao menos um drone.'); return; }
+    const ops = rs.map((r) => estado.ds.operacoes.find((o) => o.id === r.opId)).filter((o): o is Operacao => !!o);
+    m.fechar();
+    const c = abrirModal('Excluir voo', `
+      <div class="aviso aviso-critico">${icone('alerta', 18)}<div>Vai apagar ${ops.length === 1 ? 'este voo' : `estes ${ops.length} voos`} com a área e as paradas:<ul>${ops.map((o) => `<li><b>${esc(nome.aeronave(o.aeronaveId))}</b> ${esc(o.horaInicio)}–${esc(o.horaFim ?? '…')} · ${esc(fmtHa(areaOperacao(o), 2))} · ${(estado.ds.paradas.filter((p) => p.operacaoId === o.id)).length} parada(s)</li>`).join('')}</ul>Fica guardado na auditoria e nas versões anteriores da nuvem.</div></div>
+      <label class="campo"><span>Motivo da exclusão</span><textarea data-ev-mot rows="3" placeholder="Ex.: lançado em dobro"></textarea></label><div data-ev-msg2></div>`,
+    { rodapeHTML: `<button class="btn btn-sec" data-fechar>Cancelar</button><button class="btn btn-perigo" data-ev-ok2>Excluir voo</button>` });
+    c.el.querySelector('[data-ev-ok2]')!.addEventListener('click', () => {
+      const erro = alterar((ds) => excluirVoos(ds, ops.map((o) => o.id), (c.el.querySelector('[data-ev-mot]') as HTMLTextAreaElement).value));
+      if (erro) { (c.el.querySelector('[data-ev-msg2]') as HTMLElement).innerHTML = aviso('critico', esc(erro)); return; }
+      c.fechar(); toast('Voo excluído (registrado na auditoria).', 'ok'); desenhar(host);
+    });
   });
   m.el.querySelector('[data-ev-excluir]')?.addEventListener('click', async () => {
     if (!(await confirmar('Excluir parada', `Excluir a parada das ${ev.hora} (${ev.texto}) em ${refs().map((r) => r.aeronave).join(', ') || 'nenhum drone'}?`, 'Excluir'))) return;

@@ -68,7 +68,7 @@ with sync_playwright() as p:
     ev_btn('fim').click(); pg.wait_for_selector('.modal [data-ev-hora]'); pg.fill('.modal [data-ev-hora]', '23:00'); pg.click('.modal [data-ev-ok]'); pg.wait_for_timeout(300)
     ok('editar o fim do voo nos dois drones (23:20 → 23:00)', all(o['horaFim'] == '23:00' for o in ds()['operacoes']) and '23:00' in pg.locator('.dia-tempo').inner_text())
     ev_btn('inicio').click(); pg.wait_for_selector('.modal [data-ev-hora]')
-    ok('início/fim do voo não têm botão de excluir', pg.locator('.modal [data-ev-excluir]').count() == 0); pg.locator('.modal [data-fechar]').first.click()
+    ok('início/fim do voo: sem "Excluir parada", com "Excluir voo"', pg.locator('.modal [data-ev-excluir]').count() == 0 and pg.locator('.modal [data-ev-excluir-voo]').count() == 1); pg.locator('.modal [data-fechar]').first.click()
     ok('auditoria registra as edições da linha do tempo', sum(1 for a in ds()['auditoria'] if 'Linha do tempo' in a['resumo'] or 'Parada excluída' in a['resumo']) == 4)
     # eventos intercalados (início e parada às 15:50 nos dois drones) também se juntam
     pg.evaluate("""() => { const k='dap-proto-v1:dataset'; const d=JSON.parse(localStorage.getItem(k));
@@ -102,6 +102,21 @@ with sync_playwright() as p:
     d = ds()
     ok('a parada adicionada pode ser excluída (efetivo do DR-01 volta)', not any(x['motivo'] == 'Fim de tarefa' for x in d['paradas']) and [o for o in d['operacoes'] if o['id'] == 'op1'][0]['tempoEfetivoMin'] == max(0, ef0['op1'] - 30) + 30)
     ok('auditoria registra as paradas adicionadas', sum(1 for a in d['auditoria'] if 'Parada adicionada' in a['resumo']) == 2)
+    # ---- ordem no mesmo minuto e excluir voo (v1.7.11)
+    pg.evaluate("""() => { const k='dap-proto-v1:dataset'; const d=JSON.parse(localStorage.getItem(k));
+      const o = JSON.parse(JSON.stringify(d.operacoes.find(x => x.id === 'op1'))); o.id = 'op3'; o.horaInicio = '23:00'; o.horaFim = '23:40'; o.tempoEfetivoMin = 40; o.itens = [{ talhaoId: 't1', areaHa: 5 }];
+      d.operacoes.push(o); localStorage.setItem(k, JSON.stringify(d)); }""")
+    pg.goto('about:blank'); pg.goto(URL + '#/relatorios/diario'); pg.wait_for_selector('.dia-tempo')
+    ordem = pg.evaluate("[...document.querySelectorAll('.dia-tempo .ev')].map(e => e.className.match(/ev-(\\w+)/)[1] + ' ' + e.querySelector('b').textContent)")
+    ok(f'mesmo minuto: "Fim" do voo anterior antes do "Início" do seguinte ({ordem[-3:]})', ordem.index('fim 23:00') < ordem.index('inicio 23:00') and ordem[-1] == 'fim 23:40')
+    pg.locator('.dia-tempo .ev-inicio', has_text='23:00').click(); pg.wait_for_selector('.modal [data-ev-excluir-voo]')
+    pg.click('.modal [data-ev-excluir-voo]'); pg.wait_for_selector('.modal [data-ev-ok2]')
+    ok('confirmação mostra o voo e a área (5,00 ha)', '23:00–23:40' in pg.locator('.modal').inner_text() and '5,00' in pg.locator('.modal').inner_text())
+    pg.click('.modal [data-ev-ok2]'); pg.wait_for_timeout(200)
+    ok('sem motivo não exclui', 'motivo' in pg.locator('.modal').inner_text().lower() and any(o['id'] == 'op3' for o in ds()['operacoes']))
+    pg.fill('.modal [data-ev-mot]', 'lançado em dobro'); pg.click('.modal [data-ev-ok2]'); pg.wait_for_timeout(300)
+    d = ds()
+    ok('excluir voo: some o voo (op3), os outros ficam, auditoria com motivo e o antes', not any(o['id'] == 'op3' for o in d['operacoes']) and len(d['operacoes']) == 2 and any('Voo excluído' in a['resumo'] and a.get('motivo') == 'lançado em dobro' and a.get('antes') for a in d['auditoria']) and '23:40' not in pg.locator('.dia-tempo').inner_text())
     ok('sem erros de página', not erros)
     b.close()
 for r, n in res: print(r, n)
