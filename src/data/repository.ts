@@ -9,6 +9,7 @@
 import type { Dataset, Operacao, Parada } from '../domain/types';
 import { gerarDemo } from './demo';
 import { migrar, recalcularStatusOS } from '../domain/base';
+import { normalizarSequenciaGeral } from '../domain/importacao';
 
 export const PREFIXO = 'dap-proto-v1:';
 const CHAVE_DATASET = `${PREFIXO}dataset`;
@@ -71,7 +72,7 @@ export function criarRepositorio(): Repositorio {
       return ds;
     },
     salvar(ds) {
-      recalcularStatusOS(ds); // status das OS sempre coerente com as áreas no que é gravado (e no backup)
+      recalcularStatusOS(ds); normalizarSequenciaGeral(ds); // status das OS sempre coerente com as áreas no que é gravado (e no backup)
       ganchosNuvem.antes?.(ds);
       repo.salvarLocal(ds);
       ganchosNuvem.depois?.(ds);

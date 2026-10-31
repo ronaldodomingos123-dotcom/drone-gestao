@@ -157,6 +157,12 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Sequência: Todas as campanhas (v1.7.15)
+
+- **Relatórios → Sequência → Campanha → "Todas as campanhas"** (aparece com 2 ou mais campanhas): uma sequência só com as OS de todas as campanhas, com a campanha escrita em cada linha. Totais, cartões, próxima, copiar resumo, imagem e CSV/Excel/PDF valem para a lista toda.
+- A ordem de "Todas" é própria (campo `sequenciaGeral` da OS): arrastar, digitar a posição ou ▲▼ reordena só ela — a ordem dentro de cada campanha não muda (e vice-versa).
+- **OS nova entra no fim** da ordem geral, venha de qual campanha vier (importar por tabela ou PDF, Nova OS, fechamento). Ponto de partida: campanha mais antiga primeiro, cada uma na sua ordem. Importando com "Todas" aberto, a tela continua em Todas.
+
 ## ha/h do Diário no relógio da operação (v1.7.14; corrige a v1.7.13)
 
 - **ha/h efetivo** = área com voo ÷ **efetivo da operação** (tempo em que pelo menos um drone aplicava; drones juntos contam uma vez). Ex.: 162,34 ÷ 5h20 (5,33 h) = 30,44.

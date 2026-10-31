@@ -123,6 +123,8 @@ export interface OrdemServico {
   observacoes?: string;
   /** Ordem de execução na campanha (1 = primeira). */
   sequencia?: number;
+  /** Ordem na sequência "Todas as campanhas" (1 = primeira). OS nova entra no fim. */
+  sequenciaGeral?: number;
   /** Título/tipo vindo da programação importada (ex.: produto ou finalidade). */
   titulo?: string;
   /** Concluída manualmente (ex.: área real menor que a programada). */

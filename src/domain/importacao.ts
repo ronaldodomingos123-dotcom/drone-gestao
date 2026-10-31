@@ -559,3 +559,34 @@ export function limparGeraisSemUso(ds: Dataset, fazendaId: string): number {
   }
   return n;
 }
+
+// ---------------- sequência geral (todas as campanhas) ----------------
+/** OS ativas na ordem geral: quem já tem posição, pela posição; as sem posição vão para o fim (campanha mais antiga primeiro, depois a ordem da campanha). */
+export function listaGeral(ds: Dataset): OrdemServico[] {
+  const ini = new Map(ds.campanhas.map((c) => [c.id, c.inicio ?? '']));
+  return ds.ordens.filter((o) => o.status !== 'cancelada').sort((a, b) =>
+    (a.sequenciaGeral ?? 1e9) - (b.sequenciaGeral ?? 1e9)
+    || (ini.get(a.campanhaId) ?? '').localeCompare(ini.get(b.campanhaId) ?? '')
+    || a.campanhaId.localeCompare(b.campanhaId)
+    || (a.sequencia ?? 1e9) - (b.sequencia ?? 1e9)
+    || a.numero.localeCompare(b.numero, 'pt-BR', { numeric: true }));
+}
+
+/** Numera 1..N a ordem geral (só muda o que precisa): OS nova ganha a última posição. Chamado a cada gravação. */
+export function normalizarSequenciaGeral(ds: Dataset): void {
+  listaGeral(ds).forEach((o, k) => { if (o.sequenciaGeral !== k + 1) o.sequenciaGeral = k + 1; });
+}
+
+/** Leva a OS para a posição informada na ordem geral e renumera. */
+export function moverNaSequenciaGeral(ds: Dataset, osId: string, novaPosicao: number): { de: number; para: number } | null {
+  const lista = listaGeral(ds);
+  const i = lista.findIndex((x) => x.id === osId);
+  if (i < 0) return null;
+  const para = Math.min(lista.length, Math.max(1, Math.round(novaPosicao)));
+  if (!Number.isFinite(para)) return null;
+  const [os] = lista.splice(i, 1);
+  lista.splice(para - 1, 0, os);
+  const mudou = lista.some((x, k) => x.sequenciaGeral !== k + 1);
+  lista.forEach((x, k) => { x.sequenciaGeral = k + 1; });
+  return mudou ? { de: i + 1, para } : null;
+}
