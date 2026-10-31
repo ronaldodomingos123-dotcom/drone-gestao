@@ -157,6 +157,13 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Diário: campanhas em andamento e progresso por campanha (v1.7.16)
+
+- **Cabeçalho "Campanhas"** do Líder do turno: mostra as campanhas **em andamento** no dia — as que aplicaram no dia (em destaque) e as que já começaram e ainda não terminaram, com "(sem aplicação)". Campanha terminada (todas as OS concluídas e nada aplicado depois do dia) some. Com filtro de campanha, só a filtrada.
+- **Progresso das campanhas:** um bloco por campanha (anel %, concluído, restante, programado, dias de operação e previsão de término no ritmo **dela**), com o selo "aplicou X ha no dia" ou "sem aplicação no dia". Campanhas diferentes **não se somam** (produtos, metas e prazos diferentes). Campanha sem aplicação ainda mostra "sem aplicação ainda" na previsão.
+- Dias antigos: a campanha aparece se já tinha começado naquele dia (início da campanha ou primeira aplicação) e ainda estava em andamento.
+- Com duas campanhas aplicadas no mesmo dia, o cartão do resumo passa a se chamar "Acumulado das campanhas do dia".
+
 ## Sequência: Todas as campanhas (v1.7.15)
 
 - **Relatórios → Sequência → Campanha → "Todas as campanhas"** (aparece com 2 ou mais campanhas): uma sequência só com as OS de todas as campanhas, com a campanha escrita em cada linha. Totais, cartões, próxima, copiar resumo, imagem e CSV/Excel/PDF valem para a lista toda.

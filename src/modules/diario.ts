@@ -127,18 +127,11 @@ function desenhar(host: HTMLElement) {
   const meta = metaDiaria(ds.metas, { umDrone: false, umTurno: !!(filtro.turnoId || filtro.liderId) });
   const pctMeta = safeDiv(r.areaDia * 100, meta);
 
-  // Progresso e previsão até o dia
-  const pct = safeDiv(r.acumuladoAteDia * 100, r.planejadoEscopo);
-  const restante = r.planejadoEscopo - r.acumuladoAteDia - r.obstaculosEscopo;
-  const inicioCamp = r.areaPorDiaAteDia[0]?.data ?? dia;
-  const mapaDia = new Map(r.areaPorDiaAteDia.map((x) => [x.data, x.area]));
-  const prev = preverTermino(restante, intervaloDatas(inicioCamp, dia).map((d) => mapaDia.get(d) ?? 0), dia);
+  const progs = r.progressoCampanhas;
 
   const ci = r.climaInicial, cf = r.climaFinal;
   const fora = (l: LeituraClima | null) => (l ? avaliarLeitura(l, lim) : []);
   const fi = fora(ci).join(' '), ff = fora(cf).join(' ');
-  const angulo = Math.max(0, Math.min(100, pct ?? 0));
-  const C = 2 * Math.PI * 52;
 
   const corpo = !r.ops.length
     ? `<section class="cartao">${aviso('info', `Nenhuma operação registrada em ${esc(fmtData(dia))}${filtro.turnoId || filtro.liderId ? ' para o turno/líder selecionado' : ''}. Use as setas para ir ao dia com operação mais próximo.`)}</section>`
@@ -179,22 +172,13 @@ function desenhar(host: HTMLElement) {
         <div class="dia-drones">
           ${r.porAeronave.map((a) => `<div class="dia-drone"><span class="dia-ic">${icone('drone', 16)}</span><span class="dia-rot">${esc(nome.aeronave(a.aeronaveId))}</span><b>${esc(fmtNum(a.area, 2))}</b><small>ha · ${esc(fmtNum(produtividadeEfetiva(a.area, a.minEfetivo), 1))} ha/h efetivo</small></div>`).join('')}
           <div class="dia-drone total"><span class="dia-ic verde">${icone('area', 16)}</span><span class="dia-rot">Área total aplicada</span><b>${esc(fmtNum(r.areaDia, 2))}</b><small>ha · total das aeronaves</small></div>
-          <div class="dia-drone acum"><span class="dia-ic">${icone('meta', 16)}</span><span class="dia-rot">Acumulado da campanha</span><b>${esc(fmtNum(r.acumuladoAteDia, 1))}</b><small>ha · até ${esc(fmtData(dia))}</small></div>
+          <div class="dia-drone acum"><span class="dia-ic">${icone('meta', 16)}</span><span class="dia-rot">${r.campanhas.length > 1 ? 'Acumulado das campanhas do dia' : 'Acumulado da campanha'}</span><b>${esc(fmtNum(r.acumuladoAteDia, 1))}</b><small>ha · até ${esc(fmtData(dia))}</small></div>
         </div>
         <div class="dia-tempos"><span title="Tempo em que pelo menos um drone estava aplicando; drones ao mesmo tempo contam uma vez">Efetivo da operação <b>${esc(formatarDuracao(r.minEfetivoOperacao))}</b></span><span title="Paradas registradas no relógio: drones parados ao mesmo tempo contam uma vez">Parado <b>${esc(formatarDuracao(r.minParadoOperacao))}</b></span>${r.porAeronave.length > 1 ? `<span class="muted">por drone (somado): efetivo ${esc(formatarDuracao(r.minEfetivoSoma))} · parado ${esc(formatarDuracao(r.minParadoSoma))}</span>` : ''}${r.impedidas ? `<span class="txt-critico">${r.impedidas} operação(ões) impedida(s) por clima</span>` : ''}</div>
       </section>
-      <section class="cartao">
-        <header class="cartao-cab"><div><h2 class="dia-tit">${icone('meta', 16)} Progresso da campanha</h2><p>${esc(r.campanhas.map(nome.campanha).join(' · '))}</p></div></header>
-        <div class="dia-progresso">
-          <svg viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Percentual concluído"><circle cx="64" cy="64" r="52" fill="none" stroke="var(--linha)" stroke-width="12"/><circle cx="64" cy="64" r="52" fill="none" stroke="var(--verde-500)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${(C * angulo) / 100} ${C}" transform="rotate(-90 64 64)"/><text x="64" y="66" text-anchor="middle" class="r-centro" style="font-size:22px">${esc(fmtNum(pct, 0))}%</text><text x="64" y="84" text-anchor="middle" class="r-sub">concluído</text></svg>
-          <div class="dia-prog-txt">
-            <div><span class="dia-rot">Concluído</span><b>${esc(fmtHa(r.acumuladoAteDia, 1))}</b></div>
-            <div><span class="dia-rot">Restante</span><b>${esc(fmtHa(Math.max(0, restante), 1))}</b></div>
-            <div><span class="dia-rot">Total programado</span><b>${esc(fmtHa(r.planejadoEscopo, 1))}</b></div>
-          </div>
-        </div>
-        <div class="dia-total"><span>Dias de operação</span><b>${r.diasOperacaoAteDia}</b></div>
-        <div class="dia-total prev"><span>Previsão de término (ritmo real até este dia)</span><b>${prev.concluida ? 'Concluída' : esc(fmtData(prev.data))}</b></div>
+      <section class="cartao" data-dia-progresso>
+        <header class="cartao-cab"><div><h2 class="dia-tit">${icone('meta', 16)} Progresso ${progs.length > 1 ? 'das campanhas' : 'da campanha'}</h2><p>${progs.length > 1 ? 'Cada campanha separada (produtos diferentes não se somam) · some quando a campanha termina' : esc(progs.map((x) => nome.campanha(x.campanhaId)).join(' · '))}</p></div></header>
+        ${progs.map((x) => blocoProgresso(x, progs.length > 1)).join('') || '<p class="vazio-txt">Sem campanha em andamento neste dia.</p>'}
       </section>
     </div>
 
@@ -218,7 +202,7 @@ function desenhar(host: HTMLElement) {
           <label><small>Data</small><input type="date" data-k="dia" value="${esc(dia)}"></label>
           <button class="btn-icone" data-nav="prox" aria-label="Próximo dia com operação" ${iDia === datas.length - 1 ? 'disabled' : ''}>${icone('dir', 18)}</button>
         </div>
-        <div class="dia-chip"><small>Campanha</small><b>${esc(r.campanhas.map(nome.campanha).join(' · ') || '—')}</b></div>
+        <div class="dia-chip"><small>Campanha${progs.length > 1 ? 's' : ''}</small><b>${progs.map((x) => x.aplicouNoDia ? esc(nome.campanha(x.campanhaId)) : `<span class="dia-camp-sem" title="Em andamento, sem aplicação neste dia">${esc(nome.campanha(x.campanhaId))} <small>(sem aplicação)</small></span>`).join('<span class="dia-camp-sep"> · </span>') || esc(r.campanhas.map(nome.campanha).join(' · ') || '—')}</b></div>
         <div class="dia-chip"><small>Turno · líder</small><b>${esc(r.turnos.map(nome.turno).join(', ') || '—')}${r.lideres.length ? ` · ${esc(r.lideres.map(nome.colaborador).join(', '))}` : ''}</b></div>
       </div>
     </section>
@@ -385,4 +369,29 @@ function excluirTurnoTela(host: HTMLElement) {
     r.el.querySelector('[data-tx-ir]')!.addEventListener('click', () => r.fechar());
     desenhar(host);
   });
+}
+
+/** Bloco de progresso de UMA campanha até o dia (anel, concluído/restante/programado, dias e previsão no ritmo dela). */
+function blocoProgresso(x: import('../domain/diario').ProgressoCampanhaDia, varias: boolean): string {
+  const pct = safeDiv(x.acumuladoAteDia * 100, x.planejado);
+  const restante = x.planejado - x.acumuladoAteDia - x.obstaculos;
+  const inicio = x.areaPorDia[0]?.data ?? dia;
+  const mapa = new Map(x.areaPorDia.map((d) => [d.data, d.area]));
+  const prev = preverTermino(restante, intervaloDatas(inicio, dia).map((d) => mapa.get(d) ?? 0), dia);
+  const ang = Math.max(0, Math.min(100, pct ?? 0));
+  const tam = varias ? 96 : 128, rr = varias ? 38 : 52, C = 2 * Math.PI * rr;
+  const prevTxt = prev.concluida ? 'Concluída' : !x.acumuladoAteDia ? 'sem aplicação ainda' : prev.data ? fmtData(prev.data) : '—';
+  return `<div class="dia-camp-bloco ${varias ? 'varias' : ''}" data-camp="${esc(x.campanhaId)}">
+    ${varias ? `<div class="dia-camp-tit"><b>${esc(nome.campanha(x.campanhaId))}</b>${x.aplicouNoDia ? `<span class="selo selo-ok">aplicou ${esc(fmtNum(x.areaDia, 2))} ha no dia</span>` : '<span class="selo selo-neutro">sem aplicação no dia</span>'}</div>` : ''}
+    <div class="dia-progresso">
+      <svg viewBox="0 0 ${tam} ${tam}" width="${tam}" height="${tam}" role="img" aria-label="Percentual concluído"><circle cx="${tam / 2}" cy="${tam / 2}" r="${rr}" fill="none" stroke="var(--linha)" stroke-width="${varias ? 10 : 12}"/>${ang > 0 ? `<circle cx="${tam / 2}" cy="${tam / 2}" r="${rr}" fill="none" stroke="var(--verde-500)" stroke-width="${varias ? 10 : 12}" stroke-linecap="round" stroke-dasharray="${(C * ang) / 100} ${C}" transform="rotate(-90 ${tam / 2} ${tam / 2})"/>` : ''}<text x="${tam / 2}" y="${tam / 2 + (varias ? 4 : 2)}" text-anchor="middle" class="r-centro" style="font-size:${varias ? 18 : 22}px">${esc(fmtNum(pct, 0))}%</text>${varias ? '' : `<text x="64" y="84" text-anchor="middle" class="r-sub">concluído</text>`}</svg>
+      <div class="dia-prog-txt">
+        <div><span class="dia-rot">Concluído</span><b>${esc(fmtHa(x.acumuladoAteDia, 1))}</b></div>
+        <div><span class="dia-rot">Restante</span><b>${esc(fmtHa(Math.max(0, restante), 1))}</b></div>
+        <div><span class="dia-rot">Total programado</span><b>${esc(fmtHa(x.planejado, 1))}</b></div>
+      </div>
+    </div>
+    <div class="dia-total"><span>Dias de operação</span><b>${x.diasOperacao}</b></div>
+    <div class="dia-total prev"><span>Previsão de término (ritmo real até este dia)</span><b>${esc(prevTxt)}</b></div>
+  </div>`;
 }

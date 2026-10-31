@@ -1053,3 +1053,11 @@ b.nv-ok { color: #1f7a45; } b.nv-aviso { color: #8a5a00; } b.nv-erro { color: #a
 .img-exp .g-dia-mot, .img-exp .g-dia-sem { font-size: 13px !important; }
 .btn-perigo-txt { color: var(--critico); }
 .seq-camp { color: var(--verde-700, #1f7a45); font-weight: 600; }
+.dia-camp-sem { opacity: .72; font-weight: 600; }
+.dia-camp-sem small { font-weight: 500; font-size: 11px; text-transform: none; letter-spacing: 0; }
+.dia-camp-bloco.varias + .dia-camp-bloco.varias { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--linha); }
+.dia-camp-tit { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.dia-camp-tit b { font-size: 14px; }
+.dia-camp-bloco.varias .dia-prog-txt b { font-size: 15px; }
+.dia-camp-bloco.varias .dia-total { padding: 7px 12px; margin-top: 8px; }
+.dia-camp-bloco.varias .dia-total b { font-size: 15px; }

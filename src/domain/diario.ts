@@ -57,6 +57,14 @@ export interface ResumoDia {
   acumuladoAteDia: number;
   diasOperacaoAteDia: number;
   areaPorDiaAteDia: { data: string; area: number }[];
+  /** Progresso por campanha em andamento no dia (aplicou no dia ou ainda não terminou); a filtrada, se houver filtro. */
+  progressoCampanhas: ProgressoCampanhaDia[];
+}
+
+export interface ProgressoCampanhaDia {
+  campanhaId: string; aplicouNoDia: boolean; areaDia: number;
+  planejado: number; obstaculos: number; acumuladoAteDia: number; diasOperacao: number;
+  areaPorDia: { data: string; area: number }[];
 }
 
 export function datasComOperacao(ds: Dataset, f: FiltroDia): string[] {
@@ -181,6 +189,32 @@ export function resumoDia(ds: Dataset, idx: Indices, data: string, f: FiltroDia)
   const porDia = new Map<string, number>();
   for (const o of opsAte) porDia.set(o.data, (porDia.get(o.data) ?? 0) + areaOperacao(o));
 
+  // Campanhas em andamento no dia: começaram até o dia e (aplicaram no dia, ou têm OS em aberto, ou ainda aplicaram depois do dia).
+  const aplPorItem = aplicadoPorItem(aplicacoes(ds));
+  const todasApl = [...ds.operacoes, ...(ds.lancamentos ?? [])].filter((o) => idx.os.get(o.osId)?.status !== 'cancelada');
+  const progressoCampanhas: ProgressoCampanhaDia[] = (f.campanhaId ? ds.campanhas.filter((c) => c.id === f.campanhaId) : ds.campanhas).flatMap((c) => {
+    const os = ds.ordens.filter((o) => o.campanhaId === c.id && o.status !== 'cancelada');
+    if (!os.length) return [];
+    const apl = todasApl.filter((o) => o.campanhaId === c.id);
+    const aplicouNoDia = campanhas.includes(c.id);
+    const emAberto = os.some((o) => o.status !== 'concluida');
+    const aplicouDepois = apl.some((o) => o.data > data);
+    const comecou = (c.inicio || '') <= data || apl.some((o) => o.data <= data);
+    if (!f.campanhaId && !aplicouNoDia && !(comecou && (emAberto || aplicouDepois))) return [];
+    const ate = apl.filter((o) => o.data <= data);
+    const pd = new Map<string, number>();
+    for (const o of ate) pd.set(o.data, (pd.get(o.data) ?? 0) + areaOperacao(o));
+    return [{
+      campanhaId: c.id, aplicouNoDia,
+      areaDia: [...ops, ...lancDia].filter((o) => o.campanhaId === c.id).reduce((s, o) => s + areaOperacao(o), 0),
+      planejado: os.reduce((s, o) => s + areaPlanejadaOS(o), 0),
+      obstaculos: os.reduce((s, o) => s + areaObstaculo(o, aplPorItem), 0),
+      acumuladoAteDia: ate.reduce((s, o) => s + areaOperacao(o), 0),
+      diasOperacao: [...pd.values()].filter((v) => v > 0).length,
+      areaPorDia: [...pd.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([d, area]) => ({ data: d, area })),
+    }];
+  }).sort((a, b) => Number(b.aplicouNoDia) - Number(a.aplicouNoDia) || (ds.campanhas.find((c) => c.id === a.campanhaId)?.inicio ?? '').localeCompare(ds.campanhas.find((c) => c.id === b.campanhaId)?.inicio ?? ''));
+
   return {
     data, ops, areaDia, areaLancadaDia, inicioMin, fimMin,
     jornadaMin: inicioMin === null || fimMin === null ? 0 : fimMin - inicioMin,
@@ -200,6 +234,7 @@ export function resumoDia(ds: Dataset, idx: Indices, data: string, f: FiltroDia)
     acumuladoAteDia: opsAte.reduce((s, o) => s + areaOperacao(o), 0),
     diasOperacaoAteDia: [...porDia.values()].filter((v) => v > 0).length,
     areaPorDiaAteDia: [...porDia.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([d, area]) => ({ data: d, area })),
+    progressoCampanhas,
   };
 }
 
