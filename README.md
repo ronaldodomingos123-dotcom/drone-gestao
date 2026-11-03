@@ -157,6 +157,11 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Horas em voo: área sem registro e conferência com os lançamentos (v1.7.20)
+
+- No registro de horas em voo, campo opcional **"Área sem registro no app do drone"** + motivo (padrão "perda de sinal"): área aplicada que o drone não gravou. Entra só na **conferência**, não no ha/h em voo (as horas desse trecho também não foram gravadas).
+- Coluna **Conferência com os lançamentos**: compara área do drone + área sem registro com os voos lançados no app para o mesmo drone e período. "bate" até 0,05 ha de diferença; senão "lançado a mais/a menos X ha".
+
 ## Horas em voo do app do drone (v1.7.19)
 
 - **Aeronaves e equipamentos → "Horas em voo (app do drone)"** (Líder e Gestor): por drone e período (um dia ou vários), as horas no ar e a área do relatório do app do drone; voos e calda (L) opcionais. Aceita horas como o app mostra (22,62) ou hh:mm (22:37) e números com ponto ou vírgula. A tabela mostra ha/h em voo, min/voo e L/ha.

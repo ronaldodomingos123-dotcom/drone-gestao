@@ -5,7 +5,7 @@ import type { Aeronave, Campanha, Colaborador, Fazenda, OrdemServico, Produto, T
 import { alterar, estado, nome } from '../state';
 import { podeGravar } from '../data/nuvem';
 import { novoId } from '../data/repository';
-import { gravarRegistroVoo, lerHoras, removerRegistroVoo, type RegistroVooApp } from '../domain/vooApp';
+import { conferirComLancamentos, gravarRegistroVoo, lerHoras, removerRegistroVoo, type RegistroVooApp } from '../domain/vooApp';
 import { aviso, barraFiltros, cabecalhoPagina, seloAeronave, seloOS, seloOperacao, rotuloStatusOS } from '../ui/components';
 import { abrirModal, confirmar, esc, fmtData, fmtHa, fmtNum, fmtPct, hojeISO, toast } from '../ui/dom';
 import { icone } from '../ui/icons';
@@ -279,10 +279,10 @@ function desenharVooApp(host: HTMLElement) {
   const regs = [...(ds.voosApp ?? [])].sort((a, b) => b.ate.localeCompare(a.ate) || nome.aeronave(a.aeronaveId).localeCompare(nome.aeronave(b.aeronaveId)));
   const pode = podeGravar();
   host.innerHTML = `<header class="cartao-cab"><div><h2>${icone('drone', 16)} Horas em voo (app do drone)</h2><p>Copie do relatório do app do drone: horas no ar e área de cada drone num período (um dia ou vários). É a base do <b>ha/h em voo por drone</b> e da meta por drone (hora pulverizando).</p></div>${pode ? `<button class="btn btn-pri btn-peq" data-vapp-novo>${icone('mais', 14)} Lançar horas em voo</button>` : ''}</header>
-    ${regs.length ? `<div class="tabela-rolagem"><table class="tabela tabela-simples"><thead><tr><th>Drone</th><th>Período</th><th class="dir">Horas em voo</th><th class="dir">Área (ha)</th><th class="dir">ha/h em voo</th><th class="dir">Voos</th><th class="dir">min/voo</th><th class="dir">Calda (L/ha)</th>${pode ? '<th></th>' : ''}</tr></thead><tbody>
-    ${regs.map((r) => `<tr data-vapp="${esc(r.id)}"><td><b>${esc(nome.aeronave(r.aeronaveId))}</b>${r.observacao ? `<small class="bloco muted">${esc(r.observacao)}</small>` : ''}</td><td>${esc(fmtData(r.de))}${r.ate !== r.de ? ` a ${esc(fmtData(r.ate))}` : ''}</td><td class="dir">${esc(fmtNum(r.horasVoo, 2))} h <small class="muted">(${esc(formatarDuracao(Math.round(r.horasVoo * 60)))})</small></td><td class="dir">${esc(fmtNum(r.areaHa, 2))}</td><td class="dir"><b>${esc(fmtNum(r.areaHa / r.horasVoo, 2))}</b></td><td class="dir">${r.voos ?? '—'}</td><td class="dir">${r.voos ? esc(fmtNum((r.horasVoo * 60) / r.voos, 1)) : '—'}</td><td class="dir">${r.litros ? esc(fmtNum(r.litros / r.areaHa, 2)) : '—'}</td>${pode ? `<td><span class="acoes-linha"><button class="btn-icone" data-vapp-editar="${esc(r.id)}" title="Editar" aria-label="Editar">${icone('config', 14)}</button><button class="btn-icone" data-vapp-excluir="${esc(r.id)}" title="Excluir" aria-label="Excluir">${icone('lixo', 14)}</button></span></td>` : ''}</tr>`).join('')}
+    ${regs.length ? `<div class="tabela-rolagem"><table class="tabela tabela-simples"><thead><tr><th>Drone</th><th>Período</th><th class="dir">Horas em voo</th><th class="dir">Área (ha)</th><th class="dir">ha/h em voo</th><th class="dir">Voos</th><th class="dir">min/voo</th><th class="dir">Calda (L/ha)</th><th>Conferência com os lançamentos</th>${pode ? '<th></th>' : ''}</tr></thead><tbody>
+    ${regs.map((r) => `<tr data-vapp="${esc(r.id)}"><td><b>${esc(nome.aeronave(r.aeronaveId))}</b>${r.observacao ? `<small class="bloco muted">${esc(r.observacao)}</small>` : ''}</td><td>${esc(fmtData(r.de))}${r.ate !== r.de ? ` a ${esc(fmtData(r.ate))}` : ''}</td><td class="dir">${esc(fmtNum(r.horasVoo, 2))} h <small class="muted">(${esc(formatarDuracao(Math.round(r.horasVoo * 60)))})</small></td><td class="dir">${esc(fmtNum(r.areaHa, 2))}</td><td class="dir"><b>${esc(fmtNum(r.areaHa / r.horasVoo, 2))}</b></td><td class="dir">${r.voos ?? '—'}</td><td class="dir">${r.voos ? esc(fmtNum((r.horasVoo * 60) / r.voos, 1)) : '—'}</td><td class="dir">${r.litros ? esc(fmtNum(r.litros / r.areaHa, 2)) : '—'}</td><td>${celConferencia(r)}</td>${pode ? `<td><span class="acoes-linha"><button class="btn-icone" data-vapp-editar="${esc(r.id)}" title="Editar" aria-label="Editar">${icone('config', 14)}</button><button class="btn-icone" data-vapp-excluir="${esc(r.id)}" title="Excluir" aria-label="Excluir">${icone('lixo', 14)}</button></span></td>` : ''}</tr>`).join('')}
     </tbody></table></div>` : '<p class="vazio-txt">Nenhum registro ainda.</p>'}
-    <p class="nota">Horas no formato do app (22,62 = 22,62 h) ou hh:mm (22:37). Períodos do mesmo drone não podem se cruzar. No painel, um registro só entra quando o período inteiro dele está dentro do período filtrado.</p>`;
+    <p class="nota">Horas no formato do app (22,62 = 22,62 h) ou hh:mm (22:37). Períodos do mesmo drone não podem se cruzar. A conferência compara a área do drone (+ área sem registro, ex.: perda de sinal) com os voos lançados no app para o mesmo drone e período. No painel, um registro só entra quando o período inteiro dele está dentro do período filtrado.</p>`;
   host.onclick = async (e) => {
     const t = e.target as HTMLElement;
     if (t.closest('[data-vapp-novo]')) { formVooApp(host); return; }
@@ -295,6 +295,14 @@ function desenharVooApp(host: HTMLElement) {
       if (erro) toast(erro, 'erro'); else { toast('Registro excluído.', 'ok'); desenharVooApp(host); }
     }
   };
+}
+
+function celConferencia(r: RegistroVooApp): string {
+  const c = conferirComLancamentos(estado.ds, r);
+  const conta = `lançado ${fmtNum(c.lancado, 2)} · drone ${fmtNum(r.areaHa, 2)}${r.ajusteHa ? ` + ${fmtNum(r.ajusteHa, 2)} sem registro (${r.ajusteMotivo ?? 'perda de sinal'})` : ''}`;
+  return c.bate
+    ? `<span class="selo selo-ok">bate</span> <small class="bloco muted">${esc(conta)}</small>`
+    : `<span class="selo selo-atencao">${c.diferenca > 0 ? 'lançado a mais' : 'lançado a menos'} ${esc(fmtNum(Math.abs(c.diferenca), 2))} ha</span> <small class="bloco muted">${esc(conta)}</small>`;
 }
 
 function formVooApp(host: HTMLElement, r?: RegistroVooApp) {
@@ -310,6 +318,8 @@ function formVooApp(host: HTMLElement, r?: RegistroVooApp) {
       <label class="campo"><span>Voos (opcional)</span><input data-v="n" inputmode="numeric" value="${r?.voos ?? ''}"></label>
       <label class="campo"><span>Calda total, L (opcional)</span><input data-v="l" inputmode="decimal" value="${r?.litros ? esc(String(r.litros).replace('.', ',')) : ''}"></label>
       <label class="campo"><span>Observação (opcional)</span><input data-v="o" placeholder="ex.: operador Alan" value="${esc(r?.observacao ?? '')}"></label>
+      <label class="campo"><span>Área sem registro no app do drone (ha, opcional)</span><input data-v="aj" inputmode="decimal" placeholder="ex.: 2,38" value="${r?.ajusteHa ? esc(String(r.ajusteHa).replace('.', ',')) : ''}"><small>Aplicada mas não registrada pelo drone (perda de sinal). Entra na conferência, não no ha/h em voo.</small></label>
+      <label class="campo"><span>Motivo</span><input data-v="ajm" placeholder="perda de sinal" value="${esc(r?.ajusteMotivo ?? '')}"></label>
     </div>
     <div data-v="msg"></div>`, { rodapeHTML: '<button class="btn btn-sec" data-fechar>Cancelar</button><button class="btn btn-pri" data-v="ok">Salvar</button>' });
   const q = (k: string) => m.el.querySelector(`[data-v="${k}"]`) as HTMLInputElement;
@@ -318,7 +328,7 @@ function formVooApp(host: HTMLElement, r?: RegistroVooApp) {
   const dec = (v: string) => { const t = v.trim(); const n = Number(t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t); return t && Number.isFinite(n) ? n : undefined; };
   q('ok').addEventListener('click', () => {
     const horas = lerHoras(q('h').value);
-    const erro = alterar((d) => gravarRegistroVoo(d, { aeronaveId: q('ac').value, de: q('de').value, ate: q('ate').value, horasVoo: horas ?? 0, areaHa: dec(q('a').value) ?? 0, voos: num(q('n').value), litros: dec(q('l').value), observacao: q('o').value }, novoId, new Date().toISOString()));
+    const erro = alterar((d) => gravarRegistroVoo(d, { aeronaveId: q('ac').value, de: q('de').value, ate: q('ate').value, horasVoo: horas ?? 0, areaHa: dec(q('a').value) ?? 0, voos: num(q('n').value), litros: dec(q('l').value), observacao: q('o').value, ajusteHa: dec(q('aj').value), ajusteMotivo: q('ajm').value }, novoId, new Date().toISOString()));
     if (erro) { q('msg').innerHTML = aviso('critico', esc(erro)); return; }
     m.fechar(); toast('Horas em voo salvas.', 'ok'); desenharVooApp(host);
   });

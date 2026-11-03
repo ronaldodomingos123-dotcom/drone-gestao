@@ -17,7 +17,19 @@ export interface RegistroVooApp {
   voos?: number;
   litros?: number;
   observacao?: string;
+  /** Área aplicada que o app do drone NÃO registrou (ex.: perda de sinal). Entra só na conferência com os lançamentos,
+   *  não no ha/h em voo (as horas desse trecho também não foram registradas). */
+  ajusteHa?: number;
+  ajusteMotivo?: string;
   criadoEm: string;
+}
+
+/** Confere o registro com o que foi lançado no app (voos do drone no mesmo período). */
+export function conferirComLancamentos(ds: Dataset, r: RegistroVooApp): { lancado: number; informado: number; diferenca: number; bate: boolean } {
+  const lancado = ds.operacoes.filter((o) => o.aeronaveId === r.aeronaveId && o.data >= r.de && o.data <= r.ate).reduce((s, o) => s + areaOperacao(o), 0);
+  const informado = r.areaHa + (r.ajusteHa ?? 0);
+  const diferenca = lancado - informado;
+  return { lancado, informado, diferenca, bate: Math.abs(diferenca) <= 0.05 };
 }
 
 /** "22,62" | "22.62" (horas decimais, como o app mostra) | "22:37" | "22h37" → horas decimais. */
@@ -37,6 +49,7 @@ export function gravarRegistroVoo(ds: Dataset, r: Omit<RegistroVooApp, 'id' | 'c
   if (r.ate < r.de) return '"Até" precisa ser igual ou depois de "de".';
   if (!(r.horasVoo > 0)) return 'Informe as horas em voo (ex.: 22,62 ou 22:37).';
   if (!(r.areaHa > 0)) return 'Informe a área do app do drone no mesmo período (ha).';
+  if (r.ajusteHa !== undefined && (r.ajusteHa < 0 || r.ajusteHa > r.areaHa)) return 'A área sem registro no app do drone precisa ser positiva e menor que a área registrada.';
   const haH = r.areaHa / r.horasVoo;
   if (haH > 80) return `Área ÷ horas = ${haH.toFixed(1).replace('.', ',')} ha/h, alto demais para um drone: confira se as horas estão em horas (22,62) e não em minutos.`;
   ds.voosApp ??= [];
@@ -45,9 +58,10 @@ export function gravarRegistroVoo(ds: Dataset, r: Omit<RegistroVooApp, 'id' | 'c
   const sobre = ds.voosApp.find((x) => x !== igual && x.aeronaveId === r.aeronaveId && x.de <= r.ate && r.de <= x.ate);
   if (sobre) return `${ac.identificacao} já tem registro de ${sobre.de.split('-').reverse().join('/')} a ${sobre.ate.split('-').reverse().join('/')} que cruza este período. Exclua ou ajuste aquele antes.`;
   const limpo: RegistroVooApp = { id: igual?.id ?? gerarId('vapp'), criadoEm: agora, aeronaveId: r.aeronaveId, de: r.de, ate: r.ate, horasVoo: r.horasVoo, areaHa: r.areaHa,
-    ...(r.voos ? { voos: r.voos } : {}), ...(r.litros ? { litros: r.litros } : {}), ...(r.observacao?.trim() ? { observacao: r.observacao.trim() } : {}) };
+    ...(r.voos ? { voos: r.voos } : {}), ...(r.litros ? { litros: r.litros } : {}), ...(r.observacao?.trim() ? { observacao: r.observacao.trim() } : {}),
+    ...(r.ajusteHa ? { ajusteHa: r.ajusteHa, ajusteMotivo: r.ajusteMotivo?.trim() || 'perda de sinal' } : {}) };
   ds.voosApp = [...ds.voosApp.filter((x) => x !== igual), limpo];
-  registrar(ds, { entidade: 'aeronave', entidadeId: ac.id, acao: igual ? 'editar' : 'criar', resumo: `Horas em voo (app do drone) ${ac.identificacao} ${r.de} a ${r.ate}: ${r.horasVoo.toFixed(2).replace('.', ',')} h · ${r.areaHa.toFixed(2).replace('.', ',')} ha` });
+  registrar(ds, { entidade: 'aeronave', entidadeId: ac.id, acao: igual ? 'editar' : 'criar', resumo: `Horas em voo (app do drone) ${ac.identificacao} ${r.de} a ${r.ate}: ${r.horasVoo.toFixed(2).replace('.', ',')} h · ${r.areaHa.toFixed(2).replace('.', ',')} ha${r.ajusteHa ? ` + ${r.ajusteHa.toFixed(2).replace('.', ',')} ha sem registro (${r.ajusteMotivo?.trim() || 'perda de sinal'})` : ''}` });
   return null;
 }
 
