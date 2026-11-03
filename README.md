@@ -157,6 +157,10 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Motivos de parada: "Demais motivos" aberto (v1.7.17)
+
+- A rosca continua com 6 cores (mais que isso não se distingue), mas a fatia cinza agora se chama **"Demais motivos (N)"** e cada motivo que está nela aparece **na legenda, logo abaixo**, com tempo e %; o detalhe (toque/hover) lista os mesmos motivos com tempo e ocorrências.
+
 ## Diário: campanhas em andamento e progresso por campanha (v1.7.16)
 
 - **Cabeçalho "Campanhas"** do Líder do turno: mostra as campanhas **em andamento** no dia — as que aplicaram no dia (em destaque) e as que já começaram e ainda não terminaram, com "(sem aplicação)". Campanha terminada (todas as OS concluídas e nada aplicado depois do dia) some. Com filtro de campanha, só a filtrada.

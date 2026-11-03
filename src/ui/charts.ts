@@ -270,7 +270,7 @@ export function barrasH(host: HTMLElement, cats: CategoriaH[], series: SerieH[],
   }, H);
 }
 
-export interface Fatia { rotulo: string; valor: number; cor: string; detalhe?: string }
+export interface Fatia { rotulo: string; valor: number; cor: string; detalhe?: string; /** itens que formam a fatia (ex.: "Demais motivos"), listados na legenda abaixo dela */ sub?: { rotulo: string; valor: number }[] }
 
 /** Rosca com legenda em HTML (valores e % visíveis — identidade nunca só por cor). */
 export function rosca(host: HTMLElement, fatias: Fatia[], o: { centro: string; subCentro: string; formatar: (v: number) => string }) {
@@ -297,7 +297,7 @@ export function rosca(host: HTMLElement, fatias: Fatia[], o: { centro: string; s
         <text x="${C}" y="${C - 2}" text-anchor="middle" class="r-centro">${esc(o.centro)}</text>
         <text x="${C}" y="${C + 16}" text-anchor="middle" class="r-sub">${esc(o.subCentro)}</text></svg>
     </div>
-    <ul class="legenda-lista">${fatias.map((f, i) => `<li data-g="f${i}"><i style="background:${f.cor}"></i><span>${esc(f.rotulo)}</span><b>${esc(o.formatar(f.valor))}</b><em>${total > 0 ? fmtNum((f.valor / total) * 100, 0) : '0'}%</em></li>`).join('') || '<li class="vazio">Sem paradas registradas no período.</li>'}</ul>
+    <ul class="legenda-lista">${fatias.map((f, i) => `<li data-g="f${i}"><i style="background:${f.cor}"></i><span>${esc(f.rotulo)}</span><b>${esc(o.formatar(f.valor))}</b><em>${total > 0 ? fmtNum((f.valor / total) * 100, 0) : '0'}%</em></li>${(f.sub ?? []).map((x) => `<li class="leg-sub" data-g="f${i}"><i></i><span>${esc(x.rotulo)}</span><b>${esc(o.formatar(x.valor))}</b><em>${total > 0 ? fmtNum((x.valor / total) * 100, 0) : '0'}%</em></li>`).join('')}`).join('') || '<li class="vazio">Sem paradas registradas no período.</li>'}</ul>
     <div class="g-tip" role="tooltip" hidden></div>`;
   const tipEl = host.querySelector('.g-tip') as HTMLElement;
   host.onpointermove = (e) => {

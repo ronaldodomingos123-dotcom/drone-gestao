@@ -286,9 +286,13 @@ function desenhar(corpo: HTMLElement) {
 
   const motivos = minutosPorMotivo(opsPer, idx);
   const top = motivos.slice(0, 6);
-  const resto = motivos.slice(6).reduce((s, m) => s + m.minutos, 0);
-  const fatias = top.map((m, i) => ({ rotulo: m.motivo + (m.climatico ? ' ·clima' : ''), valor: m.minutos, cor: CORES.categoricas[i], detalhe: `<div class="tl">Ocorrências<b>${m.ocorrencias}</b></div><div class="tl">Somando os drones<b>${esc(formatarDuracao(m.minutosDrone))}</b></div>` }));
-  if (resto > 0) fatias.push({ rotulo: 'Demais motivos', valor: resto, cor: CORES.outros, detalhe: '' });
+  const demais = motivos.slice(6).filter((m) => m.minutos > 0);
+  const resto = demais.reduce((s, m) => s + m.minutos, 0);
+  const fatias: import('../ui/charts').Fatia[] = top.map((m, i) => ({ rotulo: m.motivo + (m.climatico ? ' ·clima' : ''), valor: m.minutos, cor: CORES.categoricas[i], detalhe: `<div class="tl">Ocorrências<b>${m.ocorrencias}</b></div><div class="tl">Somando os drones<b>${esc(formatarDuracao(m.minutosDrone))}</b></div>` }));
+  // a rosca tem 6 cores; os motivos seguintes ficam juntos em cinza, mas com o nome e o tempo de cada um na legenda e no detalhe
+  if (resto > 0) fatias.push({ rotulo: `Demais motivos (${demais.length})`, valor: resto, cor: CORES.outros,
+    detalhe: demais.map((m) => `<div class="tl">${esc(m.motivo + (m.climatico ? ' ·clima' : ''))}<b>${esc(formatarDuracao(m.minutos))} · ${m.ocorrencias} ocorr.</b></div>`).join(''),
+    sub: demais.map((m) => ({ rotulo: m.motivo + (m.climatico ? ' ·clima' : ''), valor: m.minutos })) });
   rosca(corpo.querySelector('#g-motivos')!, fatias, { centro: formatarDuracao(temposRelogio(opsPer, idx).parado), subCentro: 'parado', formatar: (v) => formatarDuracao(v) });
 
 }
