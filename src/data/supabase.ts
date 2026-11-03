@@ -18,7 +18,10 @@ export class ErroNuvem extends Error {
   get semPermissao() { return this.codigo === '42501' || this.status === 401 || this.status === 403; }
 }
 
-let sessao: Sessao | null = (() => { try { return JSON.parse(localStorage.getItem(CHAVE_SESSAO) ?? 'null'); } catch { return null; } })();
+const lerSessaoGuardada = (): Sessao | null => { try { return JSON.parse(localStorage.getItem(CHAVE_SESSAO) ?? 'null'); } catch { return null; } };
+let sessao: Sessao | null = lerSessaoGuardada();
+// outra aba (ou janela fixada) do mesmo navegador renovou o login ou saiu: usa o que ela gravou (evita usar um token já trocado)
+try { window.addEventListener('storage', (e) => { if (e.key === CHAVE_SESSAO) sessao = lerSessaoGuardada(); }); } catch { /* sem window (testes) */ }
 const guardar = (s: Sessao | null) => { sessao = s; try { if (s) localStorage.setItem(CHAVE_SESSAO, JSON.stringify(s)); else localStorage.removeItem(CHAVE_SESSAO); } catch { /* sessão só nesta aba */ } };
 export const sessaoAtual = () => sessao;
 
@@ -49,12 +52,17 @@ function traduzir(corpo: Record<string, unknown>, status: number): ErroNuvem {
   return new ErroNuvem(m, status, cod || (/sem_permissao|somente_gestor/.test(txt) ? '42501' : ''));
 }
 
-async function req(caminho: string, init: RequestInit & { auth?: boolean } = {}): Promise<unknown> {
+async function req(caminho: string, init: RequestInit & { auth?: boolean; limiteMs?: number } = {}): Promise<unknown> {
   const h: Record<string, string> = { apikey: NUVEM.chave, 'Content-Type': 'application/json', ...(init.headers as Record<string, string> ?? {}) };
   if (init.auth !== false && sessao) h.Authorization = `Bearer ${sessao.access_token}`;
   let r: Response;
-  try { r = await fetch(NUVEM.url + caminho, { ...init, headers: h }); } catch { throw new ErroNuvem('Sem conexão com a nuvem.', 0); }
-  const txt = await r.text();
+  // limite de tempo: sem ele, uma conexão que "trava" (sinal fraco, PC que dormiu) deixava a aba parada para sempre
+  const ctl = new AbortController();
+  const limite = window.setTimeout(() => ctl.abort(), init.limiteMs ?? 25_000);
+  let txt: string;
+  try { r = await fetch(NUVEM.url + caminho, { ...init, headers: h, signal: ctl.signal }); txt = await r.text(); }
+  catch { throw new ErroNuvem(ctl.signal.aborted ? 'A nuvem demorou a responder (conexão lenta).' : 'Sem conexão com a nuvem.', 0); }
+  finally { window.clearTimeout(limite); }
   let corpo: unknown = null;
   try { corpo = txt ? JSON.parse(txt) : null; } catch { corpo = txt; }
   if (!r.ok) throw traduzir((corpo && typeof corpo === 'object' ? corpo : { message: String(corpo) }) as Record<string, unknown>, r.status);
@@ -63,12 +71,19 @@ async function req(caminho: string, init: RequestInit & { auth?: boolean } = {})
 
 /** Garante um token válido (renova se faltar menos de 1 min). */
 async function renovarSeNecessario() {
+  // outra aba pode já ter renovado: pega a sessão mais nova gravada no navegador antes de renovar
+  const g = lerSessaoGuardada();
+  if (g && sessao && g.email === sessao.email && g.expires_at > sessao.expires_at) sessao = g;
   if (!sessao || sessao.expires_at * 1000 - Date.now() > 60_000) return;
+  const usado = sessao.refresh_token;
   try {
     const r = await req('/auth/v1/token?grant_type=refresh_token', { method: 'POST', auth: false, body: JSON.stringify({ refresh_token: sessao.refresh_token }) }) as Record<string, unknown>;
     aceitarToken(r);
   } catch (e) {
     if ((e as ErroNuvem).semRede) throw e;
+    // outra aba renovou ao mesmo tempo (o token que usamos já foi trocado): fica com o dela, sem deslogar
+    const g2 = lerSessaoGuardada();
+    if (g2 && g2.refresh_token !== usado && g2.expires_at * 1000 > Date.now()) { sessao = g2; return; }
     guardar(null); // refresh inválido: precisa entrar de novo
   }
 }
@@ -80,7 +95,7 @@ function aceitarToken(r: Record<string, unknown>) {
 }
 
 /** Chamada autenticada; se o token venceu, renova e tenta de novo uma vez. */
-async function autenticado(caminho: string, init: RequestInit = {}): Promise<unknown> {
+async function autenticado(caminho: string, init: RequestInit & { limiteMs?: number } = {}): Promise<unknown> {
   await renovarSeNecessario();
   try { return await req(caminho, init); } catch (e) {
     const er = e as ErroNuvem;
@@ -89,11 +104,11 @@ async function autenticado(caminho: string, init: RequestInit = {}): Promise<unk
   }
 }
 
-export const rpc = <T = unknown>(nome: string, args: Record<string, unknown> = {}) => autenticado(`/rest/v1/rpc/${nome}`, { method: 'POST', body: JSON.stringify(args) }) as Promise<T>;
+export const rpc = <T = unknown>(nome: string, args: Record<string, unknown> = {}, limiteMs = 25_000) => autenticado(`/rest/v1/rpc/${nome}`, { method: 'POST', body: JSON.stringify(args), limiteMs }) as Promise<T>;
 
 export interface LinhaDataset { versao: number; atualizado_em: string; atualizado_por: string | null; dados?: unknown }
 export async function lerDataset(comDados: boolean): Promise<LinhaDataset | null> {
-  const r = await autenticado(`/rest/v1/dataset?id=eq.1&select=versao,atualizado_em,atualizado_por${comDados ? ',dados' : ''}`, { method: 'GET' }) as LinhaDataset[];
+  const r = await autenticado(`/rest/v1/dataset?id=eq.1&select=versao,atualizado_em,atualizado_por${comDados ? ',dados' : ''}`, { method: 'GET', limiteMs: comDados ? 90_000 : 20_000 }) as LinhaDataset[];
   return r?.[0] ?? null;
 }
 

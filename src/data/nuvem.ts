@@ -95,7 +95,7 @@ export async function enviar(tentativa = 0): Promise<void> {
   enviando = true; definir('enviando');
   const enviado = JSON.parse(JSON.stringify(ponte.atual())) as Dataset;
   try {
-    const r = await rpc<{ ok: boolean; versao: number; conflito?: boolean }>('salvar_dataset', { p_dados: enviado, p_versao_base: meta.versaoBase });
+    const r = await rpc<{ ok: boolean; versao: number; conflito?: boolean }>('salvar_dataset', { p_dados: enviado, p_versao_base: meta.versaoBase }, 90_000);
     if (r.ok) {
       meta.versaoBase = r.versao; nuvem.versao = r.versao; meta.vinculado = true;
       gravarBase(enviado);
@@ -126,7 +126,14 @@ export async function enviar(tentativa = 0): Promise<void> {
   }
 }
 
-const temModalOuDigitando = () => !!document.querySelector('.modal-fundo') || (document.activeElement instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && !!document.activeElement.closest('#conteudo'));
+/** Só adia a atualização da tela com janela aberta ou com alguém DIGITANDO texto (filtro/lista escolhida, data e caixa de marcar não seguram mais a tela). */
+const temModalOuDigitando = () => {
+  if (document.querySelector('.modal-fundo')) return true;
+  const a = document.activeElement;
+  if (!(a instanceof HTMLElement) || !a.closest('#conteudo')) return false;
+  if (a instanceof HTMLTextAreaElement) return true;
+  return a instanceof HTMLInputElement && /^(text|search|number|tel|email|time|)$/.test(a.type);
+};
 
 function aplicarRemoto(ds: Dataset) {
   ponte.salvarLocal(ds);
@@ -210,10 +217,12 @@ export function definirModoLocal(local: boolean) {
   location.reload();
 }
 
-let verificando = false;
+let verificando = false, verificandoDesde = 0;
 async function verificar() {
-  if (verificando || nuvem.modo === 'local' || document.hidden) return;
-  verificando = true;
+  // trava de segurança: uma verificação presa há mais de 3 min não impede as próximas
+  if (verificando && Date.now() - verificandoDesde < 180_000) return;
+  if (nuvem.modo === 'local' || document.hidden) return;
+  verificando = true; verificandoDesde = Date.now();
   try {
     if (meta.pendente && podeGravar() && !nuvem.nuvemVazia) await enviar();
     const cab = await lerDataset(false);
@@ -238,6 +247,10 @@ export function iniciarNuvem(p: Ponte, intervaloMs = 10_000) {
   ganchosNuvem.antes = conferirPermissao;
   ganchosNuvem.depois = () => { meta.pendente = true; gravarMeta(); definir(navigator.onLine ? 'pendente' : 'offline'); agendarEnvio(); };
   window.addEventListener('online', () => void verificar());
+  // atualização adiada: aparece sozinha assim que a pessoa sai do campo ou fecha a janela (antes ficava esperando um clique no aviso)
+  const tentarMostrar = () => window.setTimeout(() => { if (nuvem.atualizacaoAdiada && !temModalOuDigitando()) mostrarAtualizacao(); }, 400);
+  document.addEventListener('focusout', tentarMostrar);
+  document.addEventListener('click', tentarMostrar);
   window.addEventListener('offline', () => definir('offline'));
   document.addEventListener('visibilitychange', () => { if (!document.hidden) void verificar(); });
   let iv = intervaloMs;

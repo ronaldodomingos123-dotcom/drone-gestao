@@ -170,6 +170,31 @@ try:
         ok('auditoria registra a recuperação', any('Recuperados 1 voo' in a['resumo'] for a in dados(b)['auditoria']))
         fechar_modais(A)
 
+        # ---------------- v1.7.17: tela que não atualizava
+        def gravar_fora(motivo, data):  # outra pessoa grava direto na nuvem
+            d = dados(b); d.setdefault('diasParados', []).append({'id': 'dp-' + data, 'data': data, 'motivo': motivo, 'campanhaIds': [], 'criadoEm': data + 'T08:00'})
+            b.como(b.senhas['gestor@teste.local'][0], f"select public.salvar_dataset($j${json.dumps(d)}$j$::jsonb, {versao(b)})")
+        A.goto(URL + '#/dashboard'); A.wait_for_selector('.destaque-valor'); fechar_modais(A)
+        A.locator('#conteudo select').first.focus()
+        gravar_fora('Vento acima do limite', '2026-10-24')
+        ok('lista de filtro selecionada NÃO segura mais a atualização da tela', esperar(A, lambda: any(x['data'] == '2026-10-24' for x in (ds_local(A).get('diasParados') or [])), 12000) and A.wait_for_timeout(600) is None and 'Atualização disponível' not in A.inner_text('[data-nuvem-chip]'))
+        A.goto(URL + '#/sequencia'); A.goto(URL + '#/relatorios/sequencia'); A.wait_for_selector('[data-k="busca"]')
+        A.focus('[data-k="busca"]')
+        gravar_fora('Chuva', '2026-10-25')
+        ok('digitando texto: atualização fica adiada (não apaga o que está sendo digitado)', esperar(A, lambda: 'Atualização disponível' in A.inner_text('[data-nuvem-chip]'), 12000))
+        A.locator('[data-k="busca"]').blur(); A.click('h1')
+        ok('ao sair do campo, a atualização aparece sozinha', esperar(A, lambda: 'Atualização disponível' not in A.inner_text('[data-nuvem-chip]'), 5000))
+        # conexão que trava: a aba não fica parada para sempre
+        presas = []
+        def prender(route):
+            presas.append(route)  # não responde: simula sinal fraco / PC que dormiu
+        ctxB.route('**/rest/v1/dataset**', prender)
+        B.goto(URL + '#/dashboard'); B.wait_for_timeout(500)
+        ok('requisição presa: depois do limite (20 s) o chip avisa e não trava', esperar(B, lambda: 'Sem internet' in B.inner_text('[data-nuvem-chip]'), 35000))
+        ctxB.unroute('**/rest/v1/dataset**', prender)
+        gravar_fora('Orvalho', '2026-10-26')
+        ok('conexão volta: a mesma aba sincroniza sozinha, sem recarregar', esperar(B, lambda: any(x['data'] == '2026-10-26' for x in (ds_local(B).get('diasParados') or [])), 40000) and esperar(B, lambda: 'Sincronizado' in B.inner_text('[data-nuvem-chip]'), 10000))
+
         # ---------------- Modo local: nada vai para a nuvem
         ctxC = p.chromium.launch().new_context(); b.ligar(ctxC); C = ctxC.new_page()
         chamadasC = []; C.on('request', lambda r: chamadasC.append(r.url) if 'supabase.co' in r.url else None)
