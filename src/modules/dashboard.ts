@@ -1,8 +1,8 @@
 import {
-  areaPorDia, areaPorSemana, calcularIndicadores, temposRelogio, desempenhoPor, evolucaoAcumulada, filtrarLancamentos, filtrarOperacoes, minutosPorMotivo,
+  areaPorDia, areaPorSemana, calcularIndicadores, jornadaFrente, temposRelogio, desempenhoPor, evolucaoAcumulada, filtrarLancamentos, filtrarOperacoes, minutosPorMotivo,
   ordensNoEscopo, planejadoVsRealizado,
 } from '../domain/analytics';
-import { addDias, areaOperacao, formatarDuracao, intervaloDatas, safeDiv } from '../domain/calc';
+import { addDias, areaOperacao, formatarDuracao, intervaloDatas, produtividadeEfetiva, produtividadeOperacional, safeDiv } from '../domain/calc';
 import { metaDiaria, metaPorDia, metaPorSemana } from '../domain/metas';
 import { diasEntre, preverTermino, ritmoNecessario } from '../domain/previsao';
 import { PREFIXO } from '../data/repository';
@@ -116,10 +116,13 @@ function desenhar(corpo: HTMLElement) {
   const areaAcum = [...opsAcum, ...filtrarLancamentos(ds, { ...f, status: '' }, idx, true)];
   const pct = ind.pctExecutado;
   const pctBarra = Math.max(0, Math.min(100, pct ?? 0));
-  const pctParado = safeDiv(ind.minParado, ind.minTotal);
   // no relógio: drones trabalhando/parados ao mesmo tempo contam uma vez
   const rel = temposRelogio(opsPer, idx);
-  const somando = (v: number, r: number) => (Math.abs(v - r) >= 1 ? ` · ${esc(formatarDuracao(v))} somando os drones` : '');
+  const jornadaF = jornadaFrente(opsPer); // como no Diário: 1º início ao último fim de cada dia
+  const frenteParada = Math.max(0, jornadaF - rel.efetivo); // nenhum drone aplicando
+  const pctFrenteParada = safeDiv(frenteParada, jornadaF);
+  const aproveit = safeDiv(ind.minEfetivo, ind.minTotal);
+  const simult = safeDiv(ind.minEfetivo, rel.efetivo);
 
   // Meta operacional (planejado por dia/semana) — recortada para 1 drone ou 1 turno quando filtrado
   const escopoMeta = { umDrone: !!(f.aeronaveId || f.pilotoId), umTurno: !!(f.turnoId || f.liderId) };
@@ -133,7 +136,11 @@ function desenhar(corpo: HTMLElement) {
   const fimOp = campsJanela.length && campsJanela.every((c) => c.fim) ? campsJanela.map((c) => c.fim).sort().reverse()[0] : null;
   const recorteIni = iniOp && iniOp > f.de && iniOp <= f.ate ? iniOp : null;
   const metasDia = metaPorDia(ds.metas, f.de, f.ate, escopoMeta).map((x) => ((iniOp && x.data < iniOp) || (fimOp && x.data > fimOp) ? { ...x, meta: 0 } : x));
-  const metaPeriodo = metasDia.reduce((a, x) => a + x.meta, 0);
+  const metaRitmo = metasDia.reduce((a, x) => a + x.meta, 0);
+  // a meta do período não passa do que havia para aplicar no início do período (programado − obstáculos − já aplicado antes)
+  const aplicavel = Math.max(0, ind.areaPlanejada - ind.areaObstaculos - (ind.areaAcumulada - ind.areaPeriodo));
+  const metaLimitada = ind.areaPlanejada > 0 && aplicavel < metaRitmo;
+  const metaPeriodo = metaLimitada ? aplicavel : metaRitmo;
   const pctMetaPeriodo = safeDiv(ind.areaPeriodo * 100, metaPeriodo);
   // dias sem área dentro da janela da campanha: motivo (dia sem aplicação registrado) ou "sem registro"
   const hojeD = hojeISO();
@@ -180,7 +187,7 @@ function desenhar(corpo: HTMLElement) {
         <div><span class="kpi-rot">Área total planejada</span><b>${esc(fmtHa(ind.areaPlanejada, 1))}</b><em>Soma dos itens das OS no escopo (exclui canceladas)</em></div>
         <div><span class="kpi-rot">Área restante</span><b class="${ind.areaRestante < 0 ? 'txt-critico' : ''}">${esc(fmtHa(ind.areaRestante, 1))}</b><em>Planejada − aplicada${ind.areaObstaculos > 0.005 ? ' − obstáculos' : ''}</em></div>
         ${ind.areaObstaculos > 0.005 ? `<div><span class="kpi-rot">Obstáculos / descontos</span><b>${esc(fmtHa(ind.areaObstaculos, 2))}</b><em>Saldo das OS concluídas (não aplicável)</em></div>` : ''}
-        <div><span class="kpi-rot">Aplicada no período</span><b>${esc(fmtHa(ind.areaPeriodo, 1))}</b><em>${esc(fmtData(f.de))} a ${esc(fmtData(f.ate))} · meta ${esc(fmtHa(metaPeriodo, 0))} (${esc(fmtPct(pctMetaPeriodo, 0))} atingido)${recorteIni ? ` · meta conta a partir de ${esc(fmtData(recorteIni))} (início da campanha)` : ''}${ind.areaLancada > 0.005 ? ` · inclui ${esc(fmtHa(ind.areaLancada, 2))} lançados na sequência/ficha (fora do ha/h)` : ''}</em></div>
+        <div><span class="kpi-rot">Aplicada no período</span><b>${esc(fmtHa(ind.areaPeriodo, 1))}</b><em>${esc(fmtData(f.de))} a ${esc(fmtData(f.ate))} · meta ${esc(fmtHa(metaPeriodo, metaLimitada ? 1 : 0))} (${esc(fmtPct(pctMetaPeriodo, 0))} atingido)${metaLimitada ? ` · limitada ao programado (no ritmo de ${esc(fmtNum(mDia, 0))} ha/dia seriam ${esc(fmtHa(metaRitmo, 0))})` : ''}${recorteIni ? ` · meta conta a partir de ${esc(fmtData(recorteIni))} (início da campanha)` : ''}${ind.areaLancada > 0.005 ? ` · inclui ${esc(fmtHa(ind.areaLancada, 2))} lançados na sequência/ficha (fora do ha/h)` : ''}</em></div>
         ${linhaSafra()}
         ${linhaDias(campanhaPrazo?.id ?? null)}
       </div>
@@ -188,13 +195,27 @@ function desenhar(corpo: HTMLElement) {
 
     ${cartaoPrevisao(prev, { deBase, ate: f.ate, dataMeta, mDiaMedia, prazo, campanha: campanhaPrazo?.nome ?? null, necessario, folga, restante: ind.areaRestante, recortada: !!recorteIni && deBase !== deBase0, multiCampanha: !f.campanhaId && campanhasEscopo.length > 1 })}
 
+    <section class="kpi-grupo">
+      <h3>Máquina · por drone <small>horas de cada drone somadas · compara com a meta por drone</small></h3>
+      <div class="kpis kpis-4">
+      ${kpi({ rotulo: 'ha/h em voo por drone', valor: fmtNum(ind.prodVoo, 2), unidade: 'ha/h', icone: 'drone', formula: 'Área dos voos com KML ÷ tempo com o drone no ar (KML), somando os drones. É a base da meta por drone (hora pulverizando).', sub: ind.prodVoo === null ? `sem KML de voo no período · meta ${esc(fmtNum(ds.metas.haHoraDrone, 0))} ha/h é por hora pulverizando` : `${esc(formatarDuracao(Math.round(ind.minVooKml)))} no ar · meta ${esc(fmtNum(ds.metas.haHoraDrone, 0))} ha/h → <b>${esc(fmtPct(safeDiv((ind.prodVoo ?? 0) * 100, ds.metas.haHoraDrone), 0))}</b>${ind.areaComKml < ind.areaPeriodo - ind.areaLancada - 0.05 ? ` · KML em ${esc(fmtPct(safeDiv(ind.areaComKml * 100, ind.areaPeriodo - ind.areaLancada), 0))} da área` : ''}`, tom: ind.prodVoo !== null && ind.prodVoo < ds.metas.haHoraDrone * 0.8 ? 'atencao' : '' })}
+      ${kpi({ rotulo: 'ha/h efetivo por drone', valor: fmtNum(ind.prodEfetiva, 2), unidade: 'ha/h', icone: 'velocidade', formula: 'Área com voo ÷ (jornada − paradas lançadas), somando os drones. Inclui manobras, troca de bateria e reabastecimento não lançados como parada (tempo de campo).', sub: `${esc(formatarDuracao(ind.minEfetivo))} aplicando (tempo de campo)` })}
+      ${kpi({ rotulo: 'ha/h por drone com paradas', valor: fmtNum(ind.prodOperacional, 2), unidade: 'ha/h', icone: 'relogio', formula: 'Área com voo ÷ jornada dos voos, somando os drones (inclui todas as paradas)', sub: `${esc(formatarDuracao(ind.minTotal))} de jornada dos drones` })}
+      ${kpi({ rotulo: 'Aproveitamento do tempo do drone', valor: fmtNum(aproveit === null ? null : aproveit * 100, 1), unidade: '%', icone: 'meta', formula: 'Tempo efetivo ÷ jornada, somando os drones', sub: `${esc(formatarDuracao(ind.minEfetivo))} aplicando de ${esc(formatarDuracao(ind.minTotal))}` })}
+      </div>
+    </section>
+    <section class="kpi-grupo">
+      <h3>Frente · no relógio <small>drones juntos contam uma vez · compara com a meta diária</small></h3>
+      <div class="kpis kpis-4">
+      ${kpi({ rotulo: 'ha/h efetivo da frente', valor: fmtNum(produtividadeEfetiva(ind.areaPeriodo - ind.areaLancada, rel.efetivo), 2), unidade: 'ha/h', icone: 'aplicacao', formula: 'Área com voo ÷ tempo em que algum drone estava aplicando (no relógio)', sub: `${esc(formatarDuracao(rel.efetivo))} com algum drone aplicando` })}
+      ${kpi({ rotulo: 'ha/h da jornada da frente', valor: fmtNum(produtividadeOperacional(ind.areaPeriodo - ind.areaLancada, jornadaF), 2), unidade: 'ha/h', icone: 'relogio', formula: 'Área com voo ÷ jornada no relógio (do 1º início ao último fim de cada dia, com paradas)', sub: `${esc(formatarDuracao(jornadaF))} de jornada no relógio${jornadaF - rel.total >= 1 ? ` · ${esc(formatarDuracao(rel.total))} com voo` : ''}` })}
+      ${kpi({ rotulo: 'Frente parada', valor: formatarDuracao(frenteParada), icone: 'parada', formula: 'Jornada − efetivo, no relógio: tempo em que nenhum drone estava aplicando. O % é sobre a jornada no relógio (mesma base).', sub: `${pctFrenteParada === null ? '' : `${esc(fmtPct(pctFrenteParada * 100))} da jornada · `}algum drone parado: ${esc(formatarDuracao(rel.parado))}`, tom: pctFrenteParada !== null && pctFrenteParada > 0.35 ? 'atencao' : '' })}
+      ${kpi({ rotulo: 'Drones simultâneos', valor: fmtNum(simult, 2), unidade: `de ${ind.aeronavesTotal}`, icone: 'drone', formula: 'Tempo efetivo somando os drones ÷ tempo efetivo no relógio: média de drones aplicando ao mesmo tempo', sub: 'média de drones aplicando juntos' })}
+      </div>
+    </section>
+
     <div class="kpis">
-      ${kpi({ rotulo: 'Produtividade efetiva', valor: fmtNum(ind.prodEfetiva, 2), unidade: 'ha/h', icone: 'velocidade', formula: 'Área aplicada ÷ horas efetivas de aplicação', sub: `${esc(formatarDuracao(ind.minEfetivo))} efetivas · meta ${esc(fmtNum(ds.metas.haHoraDrone, 0))} ha/h por drone` })}
-      ${kpi({ rotulo: 'Produtividade c/ paradas', valor: fmtNum(ind.prodOperacional, 2), unidade: 'ha/h', icone: 'relogio', formula: 'Área aplicada ÷ horas totais de operação (inclui paradas)', sub: `${esc(formatarDuracao(ind.minTotal))} totais` })}
       ${kpi({ rotulo: 'Produtividade diária', valor: fmtNum(ind.haPorDia, 1), unidade: 'ha/dia', icone: 'calendario', formula: 'Área aplicada no período ÷ dias com aplicação', sub: `${ind.diasComAplicacao} dias com aplicação · meta ${esc(fmtNum(mDia, 0))} ha/dia (${esc(fmtPct(safeDiv((ind.haPorDia ?? 0) * 100, mDia), 0))})` })}
-      ${kpi({ rotulo: 'Tempo efetivo de aplicação', valor: formatarDuracao(rel.efetivo), icone: 'aplicacao', formula: 'No relógio: tempo em que algum drone estava aplicando (drones ao mesmo tempo contam uma vez)', sub: `no relógio${somando(ind.minEfetivo, rel.efetivo)}` })}
-      ${kpi({ rotulo: 'Tempo total de operação', valor: formatarDuracao(rel.total), icone: 'relogio', formula: 'No relógio: do início ao fim dos voos (drones ao mesmo tempo contam uma vez)', sub: `no relógio${somando(ind.minTotal, rel.total)}` })}
-      ${kpi({ rotulo: 'Tempo parado', valor: formatarDuracao(rel.parado), icone: 'parada', formula: 'No relógio: paradas registradas (drones parados ao mesmo tempo contam uma vez). A % é sobre o tempo dos voos somando os drones.', sub: `${pctParado === null ? '' : `${esc(fmtPct(pctParado * 100))} do tempo dos voos`}${somando(ind.minParado, rel.parado)}`, tom: pctParado !== null && pctParado > 0.35 ? 'atencao' : '' })}
       ${kpi({ rotulo: 'OS abertas', valor: String(ind.osAbertas), icone: 'os', formula: 'OS no escopo com status "Aberta"', sub: `${ind.osEmExecucao} em execução` })}
       ${kpi({ rotulo: 'Operações concluídas', valor: String(ind.opsConcluidas), icone: 'ok', formula: 'Operações do período com status "Concluída"', sub: `${ind.opsParciais} parciais · ${ind.opsNoPeriodo} no total` })}
       ${kpi({ rotulo: 'Aeronaves disponíveis', valor: `${ind.aeronavesDisponiveis}`, unidade: `de ${ind.aeronavesTotal}`, icone: 'drone', formula: 'Situação ATUAL do cadastro (não depende do período)' })}

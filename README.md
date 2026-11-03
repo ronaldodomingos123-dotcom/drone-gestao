@@ -157,6 +157,14 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Indicadores de produtividade: máquina × frente (v1.7.18)
+
+Base: auditoria de 03/11/2026 contra a literatura (Hanna, Iowa State PM 696 / ASABE; Mialhe 1974; Qin et al. 2023).
+- **Máquina · por drone** (horas de cada drone somadas): **ha/h em voo por drone** = área dos voos com KML ÷ tempo no ar (KML) — é a base da meta por drone, definida como **hora pulverizando** (23 ha/h); **ha/h efetivo por drone** = área ÷ (jornada − paradas lançadas) = tempo de campo; **ha/h por drone com paradas**; **aproveitamento do tempo do drone** = efetivo ÷ jornada.
+- **Frente · no relógio** (drones juntos contam uma vez): **ha/h efetivo da frente** = área ÷ tempo com algum drone aplicando; **ha/h da jornada da frente** = área ÷ jornada (1º início ao último fim de cada dia, como no Diário); **frente parada** = jornada − efetivo, com o % na mesma base (antes o cartão "Tempo parado" mostrava o valor no relógio e o % somando os drones); **drones simultâneos** = efetivo somado ÷ efetivo no relógio.
+- **Meta do período** limitada ao que havia para aplicar (programado − obstáculos − aplicado antes do período); o texto mostra quanto seria no ritmo de ha/dia.
+- **Diário**: mesmos nomes ("ha/h efetivo da frente", "ha/h da jornada da frente"), com efetivo por drone, em voo por drone (com a meta) e frente parada.
+
 ## Motivos de parada: "Demais motivos" aberto (v1.7.17)
 
 - A rosca continua com 6 cores (mais que isso não se distingue), mas a fatia cinza agora se chama **"Demais motivos (N)"** e cada motivo que está nela aparece **na legenda, logo abaixo**, com tempo e %; o detalhe (toque/hover) lista os mesmos motivos com tempo e ocorrências.

@@ -122,6 +122,11 @@ export interface Indicadores {
   opsNoPeriodo: number;
   aeronavesDisponiveis: number;
   aeronavesTotal: number;
+  /** Medido no KML de voo: área dos voos que têm KML e o tempo com o drone no ar (minutos, somando os drones). */
+  areaComKml: number;
+  minVooKml: number;
+  /** ha/h em voo por drone = área com KML ÷ tempo no ar (base da meta "por hora pulverizando"). */
+  prodVoo: number | null;
   alertas: AlertaExcesso[];
   filtroDeRecursoAtivo: boolean;
 }
@@ -141,9 +146,11 @@ export function calcularIndicadores(ds: Dataset, f: Filtros, idx: Indices): Indi
   const areaAcumulada = opsAcum.reduce((s, o) => s + areaOperacao(o), 0) + lancAcum.reduce((s, o) => s + areaOperacao(o), 0);
   let minEfetivo = 0, minTotal = 0, minParado = 0;
   const dias = new Set<string>();
+  let areaComKml = 0, minVooKml = 0;
   for (const op of opsPer) {
     const t = temposOperacao(op, idx);
     minEfetivo += t.efetivo; minTotal += t.total; minParado += t.parado;
+    if (op.voo && op.voo.tempoVooMin > 0) { areaComKml += areaOperacao(op); minVooKml += op.voo.tempoVooMin; }
     if (areaOperacao(op) > 0) dias.add(op.data);
   }
   for (const l of lancPer) if (areaOperacao(l) > 0) dias.add(l.data);
@@ -167,6 +174,7 @@ export function calcularIndicadores(ds: Dataset, f: Filtros, idx: Indices): Indi
     opsNoPeriodo: opsPer.length,
     aeronavesDisponiveis: aeronaves.filter((a) => a.status === 'disponivel').length,
     aeronavesTotal: aeronaves.length,
+    areaComKml, minVooKml, prodVoo: produtividadeEfetiva(areaComKml, minVooKml),
     alertas: alertasExcesso(escopo, [...opsEscopoTodas, ...filtrarLancamentos(ds, { ...f, status: '', aeronaveId: '', pilotoId: '', turnoId: '', liderId: '' }, idx, true)]),
     filtroDeRecursoAtivo: !!(f.aeronaveId || f.pilotoId || f.turnoId || f.liderId || f.status),
   };
@@ -277,6 +285,18 @@ export function temposRelogio(ops: Operacao[], idx: Indices): { total: number; e
     if (fim > cur) ativos.push([cur, fim]);
   }
   return { total: uniao(janelas), efetivo: uniao(ativos), parado: minutosParadasRelogio(ps) };
+}
+/** Jornada da frente no relógio, como no Diário: em cada dia, do 1º início ao último fim (intervalo entre voos conta), somada nos dias. */
+export function jornadaFrente(ops: Operacao[]): number {
+  const dia = new Map<string, [number, number]>();
+  for (const op of ops) {
+    const ini = isoLocalParaMin(`${op.data}T${(op.horaInicio || '00:00').padStart(5, '0')}`);
+    const tot = duracaoTotalMin(op.horaInicio, op.horaFim);
+    if (ini === null || !tot || op.status === 'impedida_clima') continue;
+    const j = dia.get(op.data);
+    dia.set(op.data, j ? [Math.min(j[0], ini), Math.max(j[1], ini + tot)] : [ini, ini + tot]);
+  }
+  return Math.round([...dia.values()].reduce((s, [a, b]) => s + (b - a), 0));
 }
 function uniao(iv: [number, number][]): number {
   const o = iv.filter(([a, b]) => b > a).sort((x, y) => x[0] - y[0]);

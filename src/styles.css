@@ -1064,3 +1064,6 @@ b.nv-ok { color: #1f7a45; } b.nv-aviso { color: #8a5a00; } b.nv-erro { color: #a
 .legenda-lista li.leg-sub { font-size: 11.5px; color: var(--texto-2); padding: 2px 0 2px 14px; border-bottom: 1px dashed var(--linha); }
 .legenda-lista li.leg-sub i { width: 6px; height: 6px; border-radius: 50%; background: var(--texto-3); justify-self: center; }
 .legenda-lista li.leg-sub b { font-weight: 500; }
+.kpi-grupo { margin-bottom: 4px; }
+.kpi-grupo h3 { font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--texto-1, #15233b); margin: 0 0 8px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.kpi-grupo h3 small { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--texto-3); font-size: 12px; }
