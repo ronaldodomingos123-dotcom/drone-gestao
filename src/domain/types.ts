@@ -321,6 +321,8 @@ export interface Dataset {
   metas: MetaOperacional;
   /** Dias sem aplicação registrados (chuva, vento…), por campanha ou para todas. */
   diasParados?: import('./dias').DiaParado[];
+  /** Horas em voo informadas pelo app do drone, por drone e período (base do ha/h em voo). */
+  voosApp?: import('./vooApp').RegistroVooApp[];
   /** Meta e período da safra, independentes das campanhas. */
   safra?: import('./dias').Safra;
   /** 'demo' = dados fictícios; 'propria' = base do usuário (nunca é regenerada automaticamente). */

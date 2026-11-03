@@ -157,6 +157,12 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Horas em voo do app do drone (v1.7.19)
+
+- **Aeronaves e equipamentos → "Horas em voo (app do drone)"** (Líder e Gestor): por drone e período (um dia ou vários), as horas no ar e a área do relatório do app do drone; voos e calda (L) opcionais. Aceita horas como o app mostra (22,62) ou hh:mm (22:37) e números com ponto ou vírgula. A tabela mostra ha/h em voo, min/voo e L/ha.
+- Recusa período cruzado no mesmo drone (a hora contaria duas vezes) e área ÷ horas acima de 80 ha/h (horas digitadas em minutos). Mesmo período exato = edição. Tudo vai para a auditoria.
+- **ha/h em voo por drone** (Dashboard e Diário) = área ÷ horas no ar: usa os registros do app cujo período inteiro está dentro do filtro, e o KML de voo nos drones/dias que nenhum registro cobre. Com filtro de operador, turno ou líder, só KML (o registro do app é do drone, não da pessoa). É o número comparado com a meta por drone (hora pulverizando).
+
 ## Indicadores de produtividade: máquina × frente (v1.7.18)
 
 Base: auditoria de 03/11/2026 contra a literatura (Hanna, Iowa State PM 696 / ASABE; Mialhe 1974; Qin et al. 2023).

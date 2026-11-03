@@ -19,7 +19,7 @@ with sync_playwright() as p:
     g = pg.locator('.kpi-grupo h3').all_inner_texts()
     ok(f'dois blocos: Máquina · por drone e Frente · no relógio ({g})', len(g) == 2 and 'por drone' in g[0].lower() and 'relógio' in g[1].lower())
     t = card('ha/h em voo por drone')
-    ok(f'em voo por drone = 27,44 ÷ 1 h = 27,44 · meta 23 → 119% · KML em 50% da área ({t})', '27,44' in t and '119%' in t and 'KML em 50' in t)
+    ok(f'em voo por drone = 27,44 ÷ 1 h = 27,44 · meta 23 → 119% · KML em 50% da área ({t})', '27,44' in t and '119%' in t and 'KML em 50% da área' in t)
     t = card('ha/h efetivo por drone'); ok(f'efetivo por drone = 54,88 ÷ 4 h = 13,72 ({t})', '13,72' in t)
     t = card('ha/h por drone com paradas'); ok(f'com paradas = 54,88 ÷ 15 h = 3,66 ({t})', '3,66' in t)
     t = card('Aproveitamento do tempo do drone'); ok(f'aproveitamento = 4 h ÷ 15 h = 26,7% ({t})', '26,7' in t)

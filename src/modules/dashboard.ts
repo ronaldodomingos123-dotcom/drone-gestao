@@ -2,6 +2,7 @@ import {
   areaPorDia, areaPorSemana, calcularIndicadores, jornadaFrente, temposRelogio, desempenhoPor, evolucaoAcumulada, filtrarLancamentos, filtrarOperacoes, minutosPorMotivo,
   ordensNoEscopo, planejadoVsRealizado,
 } from '../domain/analytics';
+import { vooNoPeriodo } from '../domain/vooApp';
 import { addDias, areaOperacao, formatarDuracao, intervaloDatas, produtividadeEfetiva, produtividadeOperacional, safeDiv } from '../domain/calc';
 import { metaDiaria, metaPorDia, metaPorSemana } from '../domain/metas';
 import { diasEntre, preverTermino, ritmoNecessario } from '../domain/previsao';
@@ -123,6 +124,9 @@ function desenhar(corpo: HTMLElement) {
   const pctFrenteParada = safeDiv(frenteParada, jornadaF);
   const aproveit = safeDiv(ind.minEfetivo, ind.minTotal);
   const simult = safeDiv(ind.minEfetivo, rel.efetivo);
+  // horas em voo: registros do app do drone (só com filtro de período/drone/campanha; operador e turno não se atribuem) + KML
+  const voo = vooNoPeriodo(ds, opsPer, f.de, f.ate, f.pilotoId || f.turnoId || f.liderId ? [] : f.aeronaveId ? [f.aeronaveId] : null);
+  const prodVoo = produtividadeEfetiva(voo.area, voo.minutos);
 
   // Meta operacional (planejado por dia/semana) — recortada para 1 drone ou 1 turno quando filtrado
   const escopoMeta = { umDrone: !!(f.aeronaveId || f.pilotoId), umTurno: !!(f.turnoId || f.liderId) };
@@ -198,7 +202,7 @@ function desenhar(corpo: HTMLElement) {
     <section class="kpi-grupo">
       <h3>Máquina · por drone <small>horas de cada drone somadas · compara com a meta por drone</small></h3>
       <div class="kpis kpis-4">
-      ${kpi({ rotulo: 'ha/h em voo por drone', valor: fmtNum(ind.prodVoo, 2), unidade: 'ha/h', icone: 'drone', formula: 'Área dos voos com KML ÷ tempo com o drone no ar (KML), somando os drones. É a base da meta por drone (hora pulverizando).', sub: ind.prodVoo === null ? `sem KML de voo no período · meta ${esc(fmtNum(ds.metas.haHoraDrone, 0))} ha/h é por hora pulverizando` : `${esc(formatarDuracao(Math.round(ind.minVooKml)))} no ar · meta ${esc(fmtNum(ds.metas.haHoraDrone, 0))} ha/h → <b>${esc(fmtPct(safeDiv((ind.prodVoo ?? 0) * 100, ds.metas.haHoraDrone), 0))}</b>${ind.areaComKml < ind.areaPeriodo - ind.areaLancada - 0.05 ? ` · KML em ${esc(fmtPct(safeDiv(ind.areaComKml * 100, ind.areaPeriodo - ind.areaLancada), 0))} da área` : ''}`, tom: ind.prodVoo !== null && ind.prodVoo < ds.metas.haHoraDrone * 0.8 ? 'atencao' : '' })}
+      ${kpi({ rotulo: 'ha/h em voo por drone', valor: fmtNum(prodVoo, 2), unidade: 'ha/h', icone: 'drone', formula: 'Área ÷ horas com o drone no ar, somando os drones. Horas do app do drone (Aeronaves → Horas em voo) para os períodos lançados, e do KML de voo nos demais dias. É a base da meta por drone (hora pulverizando).', sub: prodVoo === null ? `sem horas em voo no período · lance em Aeronaves → Horas em voo · meta ${esc(fmtNum(ds.metas.haHoraDrone, 0))} ha/h é por hora pulverizando${voo.foraDoPeriodo ? ` · ${voo.foraDoPeriodo} registro(s) do app passam do período filtrado` : ''}` : `${esc(formatarDuracao(Math.round(voo.minutos)))} no ar · meta ${esc(fmtNum(ds.metas.haHoraDrone, 0))} ha/h → <b>${esc(fmtPct(safeDiv((prodVoo ?? 0) * 100, ds.metas.haHoraDrone), 0))}</b> · ${[voo.doApp ? 'app do drone' : '', voo.doKml ? 'KML' : ''].filter(Boolean).join(' + ')}${!voo.doApp && voo.area < ind.areaPeriodo - ind.areaLancada - 0.05 ? ` em ${esc(fmtPct(safeDiv(voo.area * 100, ind.areaPeriodo - ind.areaLancada), 0))} da área` : ''}${voo.foraDoPeriodo ? ` · ${voo.foraDoPeriodo} registro(s) do app fora do período não entram` : ''}`, tom: prodVoo !== null && prodVoo < ds.metas.haHoraDrone * 0.8 ? 'atencao' : '' })}
       ${kpi({ rotulo: 'ha/h efetivo por drone', valor: fmtNum(ind.prodEfetiva, 2), unidade: 'ha/h', icone: 'velocidade', formula: 'Área com voo ÷ (jornada − paradas lançadas), somando os drones. Inclui manobras, troca de bateria e reabastecimento não lançados como parada (tempo de campo).', sub: `${esc(formatarDuracao(ind.minEfetivo))} aplicando (tempo de campo)` })}
       ${kpi({ rotulo: 'ha/h por drone com paradas', valor: fmtNum(ind.prodOperacional, 2), unidade: 'ha/h', icone: 'relogio', formula: 'Área com voo ÷ jornada dos voos, somando os drones (inclui todas as paradas)', sub: `${esc(formatarDuracao(ind.minTotal))} de jornada dos drones` })}
       ${kpi({ rotulo: 'Aproveitamento do tempo do drone', valor: fmtNum(aproveit === null ? null : aproveit * 100, 1), unidade: '%', icone: 'meta', formula: 'Tempo efetivo ÷ jornada, somando os drones', sub: `${esc(formatarDuracao(ind.minEfetivo))} aplicando de ${esc(formatarDuracao(ind.minTotal))}` })}

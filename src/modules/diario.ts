@@ -6,6 +6,7 @@ import { areaOperacao, ultimo, formatarDuracao, intervaloDatas, produtividadeEfe
 import { datasComOperacao, editarObservacao, resumoDia, type FiltroDia } from '../domain/diario';
 import { adicionarParada, conteudoTurnoDia, editarEvento, excluirEvento, excluirTurnoDia, excluirVoos, voosNaHora } from '../domain/linhaTempo';
 import { novoId } from '../data/repository';
+import { vooNoPeriodo } from '../domain/vooApp';
 import { MOTIVOS_PARADA, type MotivoParada } from '../domain/types';
 import { podeGravar } from '../data/nuvem';
 import { metaDiaria } from '../domain/metas';
@@ -125,8 +126,8 @@ function desenhar(host: HTMLElement) {
   const prodJornada = produtividadeOperacional(areaVoos, r.jornadaMin);
   const prodEfDrone = produtividadeEfetiva(areaVoos, r.minEfetivoSoma);
   // em voo (KML): base da meta por drone, que é por hora pulverizando
-  const comKml = r.ops.filter((o) => o.voo && o.voo.tempoVooMin > 0);
-  const prodVoo = produtividadeEfetiva(comKml.reduce((s, o) => s + areaOperacao(o), 0), comKml.reduce((s, o) => s + (o.voo?.tempoVooMin ?? 0), 0));
+  const vd = vooNoPeriodo(ds, r.ops, dia, dia, filtro.turnoId || filtro.liderId ? [] : [...new Set(r.ops.map((o) => o.aeronaveId))]);
+  const prodVoo = produtividadeEfetiva(vd.area, vd.minutos);
   const meta = metaDiaria(ds.metas, { umDrone: false, umTurno: !!(filtro.turnoId || filtro.liderId) });
   const pctMeta = safeDiv(r.areaDia * 100, meta);
 

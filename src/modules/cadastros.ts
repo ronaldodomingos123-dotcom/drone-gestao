@@ -2,9 +2,12 @@
 import { desempenhoPor, filtrarOperacoes } from '../domain/analytics';
 import { aplicacoes, aplicadoPorItem, areaObstaculo, areaOperacao, areaPlanejadaOS, chaveItem, formatarDuracao, percentualExecutado, quantidadeTotal, somaParadasMin } from '../domain/calc';
 import type { Aeronave, Campanha, Colaborador, Fazenda, OrdemServico, Produto, Turno, Unidade } from '../domain/types';
-import { estado, nome } from '../state';
+import { alterar, estado, nome } from '../state';
+import { podeGravar } from '../data/nuvem';
+import { novoId } from '../data/repository';
+import { gravarRegistroVoo, lerHoras, removerRegistroVoo, type RegistroVooApp } from '../domain/vooApp';
 import { aviso, barraFiltros, cabecalhoPagina, seloAeronave, seloOS, seloOperacao, rotuloStatusOS } from '../ui/components';
-import { abrirModal, esc, fmtData, fmtHa, fmtNum, fmtPct } from '../ui/dom';
+import { abrirModal, confirmar, esc, fmtData, fmtHa, fmtNum, fmtPct, hojeISO, toast } from '../ui/dom';
 import { icone } from '../ui/icons';
 import { tabela } from '../ui/table';
 import { abrirDetalheOperacao } from './aplicacoes';
@@ -73,7 +76,9 @@ export function renderAeronaves(raiz: HTMLElement) {
   const { ds, idx } = estado;
   raiz.innerHTML = `${cabecalhoPagina('Aeronaves e equipamentos', 'Situação atual, utilização e ocorrências por aeronave.', novo('aeronave', 'Nova aeronave'))}
     ${aviso('info', 'Horas e áreas vêm dos registros de operação do sistema. <b>Não há integração com telemetria do fabricante, RTK ou NTRIP</b> — essas integrações exigem estudo, documentação e autorização próprios.')}
-    <div class="grade-cartoes" id="ac-grade"></div>`;
+    <div class="grade-cartoes" id="ac-grade"></div>
+    <section class="cartao" id="ac-voo-app"></section>`;
+  desenharVooApp(raiz.querySelector('#ac-voo-app') as HTMLElement);
   const grade = raiz.querySelector('#ac-grade') as HTMLElement;
   grade.innerHTML = ds.aeronaves.map((a) => {
     const ops = ds.operacoes.filter((o) => o.aeronaveId === a.id);
@@ -266,4 +271,55 @@ export function renderCampanhas(raiz: HTMLElement) {
     { id: 'pct', titulo: 'Execução', valor: (c) => percentualExecutado(feito(c.id), plan(c.id)), render: (c) => barraProgresso(percentualExecutado(feito(c.id), plan(c.id))) },
     { id: 'ac', titulo: '', valor: () => null, render: (c) => acoesLinha('campanha', c.id) },
   ], { vazio: 'Nenhuma campanha. Crie uma ou importe a sequência em Relatórios → Sequência.' });
+}
+
+// ---------------- Horas em voo (app do drone) ----------------
+function desenharVooApp(host: HTMLElement) {
+  const { ds } = estado;
+  const regs = [...(ds.voosApp ?? [])].sort((a, b) => b.ate.localeCompare(a.ate) || nome.aeronave(a.aeronaveId).localeCompare(nome.aeronave(b.aeronaveId)));
+  const pode = podeGravar();
+  host.innerHTML = `<header class="cartao-cab"><div><h2>${icone('drone', 16)} Horas em voo (app do drone)</h2><p>Copie do relatório do app do drone: horas no ar e área de cada drone num período (um dia ou vários). É a base do <b>ha/h em voo por drone</b> e da meta por drone (hora pulverizando).</p></div>${pode ? `<button class="btn btn-pri btn-peq" data-vapp-novo>${icone('mais', 14)} Lançar horas em voo</button>` : ''}</header>
+    ${regs.length ? `<div class="tabela-rolagem"><table class="tabela tabela-simples"><thead><tr><th>Drone</th><th>Período</th><th class="dir">Horas em voo</th><th class="dir">Área (ha)</th><th class="dir">ha/h em voo</th><th class="dir">Voos</th><th class="dir">min/voo</th><th class="dir">Calda (L/ha)</th>${pode ? '<th></th>' : ''}</tr></thead><tbody>
+    ${regs.map((r) => `<tr data-vapp="${esc(r.id)}"><td><b>${esc(nome.aeronave(r.aeronaveId))}</b>${r.observacao ? `<small class="bloco muted">${esc(r.observacao)}</small>` : ''}</td><td>${esc(fmtData(r.de))}${r.ate !== r.de ? ` a ${esc(fmtData(r.ate))}` : ''}</td><td class="dir">${esc(fmtNum(r.horasVoo, 2))} h <small class="muted">(${esc(formatarDuracao(Math.round(r.horasVoo * 60)))})</small></td><td class="dir">${esc(fmtNum(r.areaHa, 2))}</td><td class="dir"><b>${esc(fmtNum(r.areaHa / r.horasVoo, 2))}</b></td><td class="dir">${r.voos ?? '—'}</td><td class="dir">${r.voos ? esc(fmtNum((r.horasVoo * 60) / r.voos, 1)) : '—'}</td><td class="dir">${r.litros ? esc(fmtNum(r.litros / r.areaHa, 2)) : '—'}</td>${pode ? `<td><span class="acoes-linha"><button class="btn-icone" data-vapp-editar="${esc(r.id)}" title="Editar" aria-label="Editar">${icone('config', 14)}</button><button class="btn-icone" data-vapp-excluir="${esc(r.id)}" title="Excluir" aria-label="Excluir">${icone('lixo', 14)}</button></span></td>` : ''}</tr>`).join('')}
+    </tbody></table></div>` : '<p class="vazio-txt">Nenhum registro ainda.</p>'}
+    <p class="nota">Horas no formato do app (22,62 = 22,62 h) ou hh:mm (22:37). Períodos do mesmo drone não podem se cruzar. No painel, um registro só entra quando o período inteiro dele está dentro do período filtrado.</p>`;
+  host.onclick = async (e) => {
+    const t = e.target as HTMLElement;
+    if (t.closest('[data-vapp-novo]')) { formVooApp(host); return; }
+    const ed = t.closest('[data-vapp-editar]') as HTMLElement | null;
+    if (ed) { formVooApp(host, (estado.ds.voosApp ?? []).find((x) => x.id === ed.dataset.vappEditar)); return; }
+    const ex = t.closest('[data-vapp-excluir]') as HTMLElement | null;
+    if (ex) {
+      if (!(await confirmar('Excluir registro', 'Excluir este registro de horas em voo?', 'Excluir'))) return;
+      const erro = alterar((d) => removerRegistroVoo(d, ex.dataset.vappExcluir!));
+      if (erro) toast(erro, 'erro'); else { toast('Registro excluído.', 'ok'); desenharVooApp(host); }
+    }
+  };
+}
+
+function formVooApp(host: HTMLElement, r?: RegistroVooApp) {
+  const { ds } = estado;
+  const hoje = hojeISO();
+  const m = abrirModal(r ? 'Editar horas em voo' : 'Lançar horas em voo', `
+    <div class="form-grade">
+      <label class="campo"><span>Drone</span><select data-v="ac">${ds.aeronaves.map((a) => `<option value="${esc(a.id)}" ${a.id === r?.aeronaveId ? 'selected' : ''}>${esc(a.identificacao)} · série ${esc(a.numeroSerie)}</option>`).join('')}</select></label>
+      <label class="campo"><span>De</span><input type="date" data-v="de" value="${esc(r?.de ?? hoje)}"></label>
+      <label class="campo"><span>Até</span><input type="date" data-v="ate" value="${esc(r?.ate ?? hoje)}"></label>
+      <label class="campo"><span>Horas em voo</span><input data-v="h" inputmode="decimal" placeholder="ex.: 22,62 ou 22:37" value="${r ? esc(String(r.horasVoo).replace('.', ',')) : ''}"></label>
+      <label class="campo"><span>Área no app do drone (ha)</span><input data-v="a" inputmode="decimal" placeholder="ex.: 571,33" value="${r ? esc(String(r.areaHa).replace('.', ',')) : ''}"></label>
+      <label class="campo"><span>Voos (opcional)</span><input data-v="n" inputmode="numeric" value="${r?.voos ?? ''}"></label>
+      <label class="campo"><span>Calda total, L (opcional)</span><input data-v="l" inputmode="decimal" value="${r?.litros ? esc(String(r.litros).replace('.', ',')) : ''}"></label>
+      <label class="campo"><span>Observação (opcional)</span><input data-v="o" placeholder="ex.: operador Alan" value="${esc(r?.observacao ?? '')}"></label>
+    </div>
+    <div data-v="msg"></div>`, { rodapeHTML: '<button class="btn btn-sec" data-fechar>Cancelar</button><button class="btn btn-pri" data-v="ok">Salvar</button>' });
+  const q = (k: string) => m.el.querySelector(`[data-v="${k}"]`) as HTMLInputElement;
+  const num = (v: string) => { const n = Number(v.trim().replace(/\./g, '').replace(',', '.')); return v.trim() && Number.isFinite(n) ? n : undefined; };
+  // "9.428,4" (ponto de milhar + vírgula) ou "571.33" (ponto decimal, como no app do drone)
+  const dec = (v: string) => { const t = v.trim(); const n = Number(t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t); return t && Number.isFinite(n) ? n : undefined; };
+  q('ok').addEventListener('click', () => {
+    const horas = lerHoras(q('h').value);
+    const erro = alterar((d) => gravarRegistroVoo(d, { aeronaveId: q('ac').value, de: q('de').value, ate: q('ate').value, horasVoo: horas ?? 0, areaHa: dec(q('a').value) ?? 0, voos: num(q('n').value), litros: dec(q('l').value), observacao: q('o').value }, novoId, new Date().toISOString()));
+    if (erro) { q('msg').innerHTML = aviso('critico', esc(erro)); return; }
+    m.fechar(); toast('Horas em voo salvas.', 'ok'); desenharVooApp(host);
+  });
 }
