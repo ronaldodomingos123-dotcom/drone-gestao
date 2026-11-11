@@ -67,6 +67,14 @@ with sync_playwright() as p:
     pg.select_option('.modal [name="campanhaId"]', 'c2'); pg.locator('.modal .btn-pri').last.click(); pg.wait_for_timeout(500)
     d = ds(); o9 = [o for o in d['ordens'] if o['id'] == 'o9'][0]
     ok(f'OS passou para a campanha original e entrou no fim da sequência dela (seq {o9.get("sequencia")})', o9['campanhaId'] == 'c2' and o9.get('sequencia') == 3)
+    # imagem: largura mínima 1200 px (2400 px com pixelRatio 2), títulos dos grupos numa linha
+    pg.set_viewport_size({'width': 1000, 'height': 800})
+    with pg.expect_download() as dl: pg.click('[data-acao="imagem"]')
+    caminho = dl.value.path(); import struct
+    with open(caminho, 'rb') as fh: cab = fh.read(24)
+    larg = struct.unpack('>I', cab[16:20])[0]
+    ok(f'imagem da sequência com 1200 px de largura mesmo em tela de 1000 px ({larg} px)', larg == 2400)
+    ok('títulos dos grupos não quebram linha', pg.evaluate("[...document.querySelectorAll('.seq-card header span')].every(s => getComputedStyle(s).whiteSpace === 'nowrap')"))
     ok('sem erros de página', not erros)
     b.close()
 for r, n in res: print(r, n)

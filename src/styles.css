@@ -1067,3 +1067,13 @@ b.nv-ok { color: #1f7a45; } b.nv-aviso { color: #8a5a00; } b.nv-erro { color: #a
 .kpi-grupo { margin-bottom: 4px; }
 .kpi-grupo h3 { font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--texto-1, #15233b); margin: 0 0 8px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .kpi-grupo h3 small { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--texto-3); font-size: 12px; }
+/* Sequência: títulos dos grupos numa linha só; na imagem, largura mínima de 1200px, números do topo em uma linha e a lista "A seguir" inteira (sem rolagem) */
+.seq-card header span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.seq-card header { gap: 8px; }
+#seq.exportando { width: max(1200px, var(--larg-tela, 0px)); box-sizing: border-box; padding: 16px; }
+#seq.exportando .seq-topo { grid-template-columns: minmax(0, 1fr) auto; }
+#seq.exportando .seq-nums { flex-wrap: nowrap; }
+#seq.exportando .seq-nums > div { white-space: nowrap; }
+#seq.exportando .seq-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#seq.exportando .seq-card-lista { max-height: none; overflow: visible; }
+#seq.exportando .tabela-rolagem { overflow: visible; max-height: none; }

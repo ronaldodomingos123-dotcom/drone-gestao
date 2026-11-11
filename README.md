@@ -157,6 +157,11 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Sequência: imagem sem cortes (v1.7.23)
+
+- "Salvar imagem" da Sequência sai com no mínimo 1200 px de largura (como o Diário), mesmo em tela estreita: os cinco números do topo numa linha só (antes "Executado" caía e sumia), títulos dos grupos sem quebrar ("Em andamento"), lista "A seguir" e tabela inteiras, sem barra de rolagem.
+- Números como −0,001 não aparecem mais como "-0,00".
+
 ## OS: trocar de campanha (v1.7.22)
 
 - No formulário da OS, campanhas de mesmo nome aparecem com início e nº de OS.

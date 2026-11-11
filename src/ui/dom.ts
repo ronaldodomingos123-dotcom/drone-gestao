@@ -12,7 +12,8 @@ export function fmtNum(v: number | null | undefined, casas = 2): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return '—';
   let f = cache.get(casas);
   if (!f) { f = nf(casas); cache.set(casas, f); }
-  return f.format(v);
+  // −0,001 arredonda para "-0,00": mostra 0,00
+  return f.format(Math.abs(v) < 0.5 * 10 ** -casas ? 0 : v);
 }
 export const fmtHa = (v: number | null | undefined, casas = 2) => (v === null || v === undefined || !Number.isFinite(v) ? '—' : `${fmtNum(v, casas)} ha`);
 export const fmtPct = (v: number | null | undefined, casas = 1) => (v === null || v === undefined || !Number.isFinite(v) ? '—' : `${fmtNum(v, casas)}%`);
