@@ -5,7 +5,7 @@
  */
 import { registrar } from '../domain/base';
 import { aplicacoes, aplicadoPorItem, areaPlanejadaOS, chaveItem, percentualExecutado, round } from '../domain/calc';
-import { EXEMPLO_SEQUENCIA, importarSequencia, listaGeral, moverNaSequencia, moverNaSequenciaGeral, importarTalhoes, lerSequencia, lerTalhoes, numeroBR, type OpcoesImportacao } from '../domain/importacao';
+import { EXEMPLO_SEQUENCIA, campanhaConcluida, importarSequencia, listaGeral, moverNaSequencia, moverNaSequenciaGeral, importarTalhoes, lerSequencia, lerTalhoes, numeroBR, type OpcoesImportacao } from '../domain/importacao';
 import type { Campanha, OrdemServico, TipoCampanha } from '../domain/types';
 import { novoId, PREFIXO } from '../data/repository';
 import { alterar, estado, nome, redesenhar } from '../state';
@@ -27,14 +27,30 @@ let busca = '';
 /** "Todas as campanhas": uma sequência só com as OS de todas as campanhas (ordem própria; OS nova entra no fim). */
 const TODAS = '*todas';
 const ehTodas = () => campanhaId === TODAS;
-const seqDe = (o: OrdemServico) => (ehTodas() ? o.sequenciaGeral : o.sequencia);
+// em "Todas", a posição vem da lista atual (fica certa mesmo antes da próxima gravação renumerar)
+const seqDe = (o: OrdemServico) => (ehTodas() ? (listaGeral(estado.ds).findIndex((x) => x.id === o.id) + 1 || undefined) : o.sequencia);
+/** Nome da campanha; com nome repetido, acrescenta o início para diferenciar. */
+function rotuloCampanha(id: string): string {
+  const ds = estado.ds; const c = ds.campanhas.find((x) => x.id === id);
+  if (!c) return '—';
+  const rep = ds.campanhas.filter((x) => x.nome.trim().toLowerCase() === c.nome.trim().toLowerCase()).length > 1;
+  return rep ? `${c.nome} · início ${fmtData(c.inicio)} · ${ds.ordens.filter((o) => o.campanhaId === c.id && o.status !== 'cancelada').length} OS` : c.nome;
+}
+/** Opções de campanha: em andamento primeiro; concluídas num grupo à parte. */
+function opcoesCampanha(sel: string): string {
+  const ds = estado.ds;
+  const ativas = ds.campanhas.filter((c) => !campanhaConcluida(ds, c.id)), concl = ds.campanhas.filter((c) => campanhaConcluida(ds, c.id));
+  const op = (c: Campanha) => `<option value="${esc(c.id)}" ${c.id === sel ? 'selected' : ''}>${esc(rotuloCampanha(c.id))}</option>`;
+  return ativas.map(op).join('') + (concl.length ? `<optgroup label="Concluídas">${concl.map(op).join('')}</optgroup>` : '');
+}
 /** Campanha da tela; em "Todas" um resumo das campanhas (só para títulos). */
 function campAtual(): Campanha | undefined {
   const ds = estado.ds;
   if (!ehTodas()) return ds.campanhas.find((c) => c.id === campanhaId);
   if (!ds.campanhas.length) return undefined;
   const fim = ds.campanhas.map((c) => c.fim).filter(Boolean).sort().pop() ?? '';
-  return { ...ds.campanhas[0], id: TODAS, nome: 'Todas as campanhas', tipo: ds.campanhas.map((c) => c.nome).join(' + ') as TipoCampanha, fim };
+  const ativas = ds.campanhas.filter((c) => !campanhaConcluida(ds, c.id));
+  return { ...ds.campanhas[0], id: TODAS, nome: 'Todas em andamento', tipo: (ativas.map((c) => rotuloCampanha(c.id)).join(' + ') || 'nenhuma campanha em andamento') as TipoCampanha, fim };
 }
 
 interface LinhaSeq { os: OrdemServico; plan: number; apl: number; saldo: number; obst: number; pct: number | null; grupo: 'concluida' | 'andamento' | 'seguir' }
@@ -181,7 +197,7 @@ function desenhar(host: HTMLElement) {
   const conc = linhas.filter((l) => l.grupo === 'concluida'), and = linhas.filter((l) => l.grupo === 'andamento'), seg = linhas.filter((l) => l.grupo === 'seguir');
   host.innerHTML = `
     <div class="seq-barra">
-      <label class="f-campo"><span>Campanha</span><select data-k="campanha">${ds.campanhas.length > 1 ? `<option value="${TODAS}" ${ehTodas() ? 'selected' : ''}>Todas as campanhas</option>` : ''}${ds.campanhas.map((c) => `<option value="${esc(c.id)}" ${c.id === campanhaId ? 'selected' : ''}>${esc(c.nome)}</option>`).join('') || '<option value="">Nenhuma campanha</option>'}</select></label>
+      <label class="f-campo"><span>Campanha</span><select data-k="campanha">${ds.campanhas.length > 1 ? `<option value="${TODAS}" ${ehTodas() ? 'selected' : ''}>Todas em andamento</option>` : ''}${opcoesCampanha(campanhaId) || '<option value="">Nenhuma campanha</option>'}</select></label>
       <label class="busca">${icone('busca', 16)}<input data-k="busca" type="search" placeholder="Pesquisar por fazenda ou FN…" value="${esc(busca)}"></label>
       <button class="btn btn-sec btn-peq" data-acao="copiar">${icone('relatorio', 15)} Copiar resumo</button>
       <button class="btn btn-sec btn-peq" data-acao="imagem">${icone('camadas', 15)} Salvar imagem</button>
@@ -232,7 +248,7 @@ function desenharTabela(host: HTMLElement) {
     return `<tr class="${prox ? 'seq-proxima' : ''} seq-${l.grupo}" data-os="${esc(l.os.id)}" data-seq="${seqDe(l.os) ?? 0}">
       <td class="seq-pos-cel"><span class="seq-alca" data-arrastar title="Arrastar para mudar a ordem" aria-hidden="true">⠿</span><span class="seq-s">S</span><input class="seq-pos" type="number" min="1" max="${linhas.length}" inputmode="numeric" value="${seqDe(l.os) ?? ''}" data-pos="${esc(l.os.id)}" aria-label="Posição de ${esc(f?.nome ?? '')} na sequência" title="Digite a nova posição e tecle Enter"><span class="seq-setas"><button class="btn-icone" data-acao="subir" data-id="${esc(l.os.id)}" aria-label="Subir" title="Subir na sequência">▲</button><button class="btn-icone" data-acao="descer" data-id="${esc(l.os.id)}" aria-label="Descer" title="Descer na sequência">▼</button></span></td>
       <td class="m-oculta">${esc(f?.codigo ?? '')}</td>
-      <td><b>${esc(f?.nome ?? '—')}</b>${prox ? ' <span class="selo selo-ok">Próxima</span>' : ''}<small class="bloco">${ehTodas() ? `<b class="seq-camp">${esc(nome.campanha(l.os.campanhaId))}</b> · ` : ''}OS ${esc(l.os.numero)}${l.os.titulo ? ` · ${esc(l.os.titulo)}` : ''}${geral ? ' · talhão geral' : ` · ${l.os.itens.length} talhão(ões)`}</small></td>
+      <td><b>${esc(f?.nome ?? '—')}</b>${prox ? ' <span class="selo selo-ok">Próxima</span>' : ''}<small class="bloco">${ehTodas() ? `<b class="seq-camp">${esc(rotuloCampanha(l.os.campanhaId))}</b> · ` : ''}OS ${esc(l.os.numero)}${l.os.titulo ? ` · ${esc(l.os.titulo)}` : ''}${geral ? ' · talhão geral' : ` · ${l.os.itens.length} talhão(ões)`}</small></td>
       <td class="dir">${esc(fmtNum(l.plan, 2))}</td>
       <td class="dir"><button type="button" class="seq-apl" data-acao="aplicado" data-id="${esc(l.os.id)}" title="Lançar/editar o aplicado e o desconto">${esc(fmtNum(l.apl, 2))} <span class="seq-lapis">${icone('config', 12)}</span></button></td>
       <td class="dir ${l.saldo < -0.01 ? 'txt-critico' : ''}"><b>${esc(fmtNum(l.saldo, 2))}</b>${l.obst > 0.005 ? '<small class="bloco seq-obst">obstáculo</small>' : ''}</td>
@@ -321,7 +337,7 @@ export function abrirImportarSequencia(campanhaPadrao = '') {
       <textarea class="campo-obs imp-texto" rows="7" placeholder="Cole aqui (Ctrl+V / colar)…"></textarea>
       <div class="pag-acoes"><button class="btn btn-sec btn-peq" data-imp="exemplo">Colar exemplo</button></div>
       <div class="form-grade">
-        <label class="campo"><span>Campanha de destino</span><select data-imp="campanha"><option value="">+ Nova campanha…</option>${ds.campanhas.map((c) => `<option value="${esc(c.id)}" ${c.id === campanhaPadrao ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}</select></label>
+        <label class="campo"><span>Campanha de destino</span><select data-imp="campanha"><option value="">+ Nova campanha…</option>${ds.campanhas.map((c) => `<option value="${esc(c.id)}" ${c.id === campanhaPadrao ? 'selected' : ''}>${esc(rotuloCampanha(c.id))}${campanhaConcluida(ds, c.id) ? ' (concluída)' : ''}</option>`).join('')}</select></label>
         <label class="campo imp-nova"><span>Nome da nova campanha</span><input data-imp="nome" placeholder="Ex.: Maturador 26/27"></label>
         <label class="campo imp-nova"><span>Tipo</span><select data-imp="tipo">${tipos.map((t) => `<option>${t}</option>`).join('')}</select></label>
         <label class="campo imp-nova"><span>Início da campanha</span><input type="date" data-imp="inicio" value="${esc(hojeISO())}"></label>
@@ -415,7 +431,7 @@ export function abrirImportarPdf(campanhaPadrao = '') {
       <div class="pdf-resumo"></div>
       <div class="pdf-lista"></div>
       <div class="form-grade">
-        <label class="campo"><span>Campanha de destino</span><select data-imp="campanha"><option value="">+ Nova campanha…</option>${ds.campanhas.map((c) => `<option value="${esc(c.id)}" ${c.id === campanhaPadrao ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}</select></label>
+        <label class="campo"><span>Campanha de destino</span><select data-imp="campanha"><option value="">+ Nova campanha…</option>${ds.campanhas.map((c) => `<option value="${esc(c.id)}" ${c.id === campanhaPadrao ? 'selected' : ''}>${esc(rotuloCampanha(c.id))}${campanhaConcluida(ds, c.id) ? ' (concluída)' : ''}</option>`).join('')}</select></label>
         <label class="campo imp-nova"><span>Nome da nova campanha</span><input data-imp="nome" placeholder="Ex.: Fungicida 26/27"></label>
         <label class="campo imp-nova"><span>Tipo</span><select data-imp="tipo">${tipos.map((t) => `<option>${t}</option>`).join('')}</select></label>
         <label class="campo imp-nova"><span>Início da campanha</span><input type="date" data-imp="inicio" value="${esc(hojeISO())}"></label>

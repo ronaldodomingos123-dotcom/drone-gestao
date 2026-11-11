@@ -562,9 +562,17 @@ export function limparGeraisSemUso(ds: Dataset, fazendaId: string): number {
 
 // ---------------- sequência geral (todas as campanhas) ----------------
 /** OS ativas na ordem geral: quem já tem posição, pela posição; as sem posição vão para o fim (campanha mais antiga primeiro, depois a ordem da campanha). */
+/** Campanha concluída = tem OS e todas as que não foram canceladas estão concluídas. */
+export function campanhaConcluida(ds: Dataset, campanhaId: string): boolean {
+  const os = ds.ordens.filter((o) => o.campanhaId === campanhaId && o.status !== 'cancelada');
+  return os.length > 0 && os.every((o) => o.status === 'concluida');
+}
+
+/** OS da sequência "Todas": só das campanhas em andamento (campanha concluída sai; volta se ganhar OS nova). */
 export function listaGeral(ds: Dataset): OrdemServico[] {
   const ini = new Map(ds.campanhas.map((c) => [c.id, c.inicio ?? '']));
-  return ds.ordens.filter((o) => o.status !== 'cancelada').sort((a, b) =>
+  const fora = new Set(ds.campanhas.filter((c) => campanhaConcluida(ds, c.id)).map((c) => c.id));
+  return ds.ordens.filter((o) => o.status !== 'cancelada' && !fora.has(o.campanhaId)).sort((a, b) =>
     (a.sequenciaGeral ?? 1e9) - (b.sequenciaGeral ?? 1e9)
     || (ini.get(a.campanhaId) ?? '').localeCompare(ini.get(b.campanhaId) ?? '')
     || a.campanhaId.localeCompare(b.campanhaId)

@@ -157,6 +157,12 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Sequência: "Todas em andamento" (v1.7.21)
+
+- A opção "Todas as campanhas" virou **"Todas em andamento"**: deixa de fora as campanhas concluídas (todas as OS não canceladas concluídas). A campanha volta se ganhar OS nova. Posições renumeradas a partir de 1 na hora.
+- No seletor, as concluídas ficam num grupo **"Concluídas"** no fim, ainda consultáveis sozinhas.
+- Campanhas com o **mesmo nome** aparecem com o início e o nº de OS para diferenciar (no seletor, nas linhas de "Todas" e na importação).
+
 ## Horas em voo: área sem registro e conferência com os lançamentos (v1.7.20)
 
 - No registro de horas em voo, campo opcional **"Área sem registro no app do drone"** + motivo (padrão "perda de sinal"): área aplicada que o drone não gravou. Entra só na **conferência**, não no ha/h em voo (as horas desse trecho também não foram gravadas).

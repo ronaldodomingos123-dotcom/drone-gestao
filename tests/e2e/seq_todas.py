@@ -19,11 +19,11 @@ with sync_playwright() as p:
     pg.goto('about:blank'); pg.goto(URL + '#/relatorios/sequencia'); pg.wait_for_selector('[data-k="campanha"]')
     ds = lambda: pg.evaluate("JSON.parse(localStorage.getItem('dap-proto-v1:dataset'))")
     ordem = lambda: pg.evaluate("[...document.querySelectorAll('tr[data-os]')].map(t => t.dataset.os)")
-    ok('opção "Todas as campanhas" no seletor', pg.locator('[data-k="campanha"] option', has_text='Todas as campanhas').count() == 1)
+    ok('opção "Todas em andamento" no seletor', pg.locator('[data-k="campanha"] option', has_text='Todas em andamento').count() == 1)
     pg.select_option('[data-k="campanha"]', '*todas'); pg.wait_for_timeout(300)
     ok(f'Todas: campanha mais antiga primeiro, cada uma na sua ordem ({ordem()})', ordem() == ['o1', 'o4', 'o2', 'o3'])
     t = pg.locator('#seq').inner_text()
-    ok('título "Todas as campanhas", total programado das 4 OS (654,00) e nome da campanha na linha', 'Todas as campanhas' in t and '654,00' in t and 'Inseticida 26/27' in pg.locator('tr[data-os="o2"]').inner_text())
+    ok('título "Todas as campanhas", total programado das 4 OS (654,00) e nome da campanha na linha', 'Todas em andamento' in t and '654,00' in t and 'Inseticida 26/27' in pg.locator('tr[data-os="o2"]').inner_text())
     ok('sem botão "Nova OS" em Todas', pg.locator('[data-novo="ordem"]').count() == 0)
     pg.fill('tr[data-os="o3"] [data-pos]', '1'); pg.press('tr[data-os="o3"] [data-pos]', 'Enter'); pg.wait_for_timeout(400)
     d = ds(); g = {o['id']: o.get('sequenciaGeral') for o in d['ordens']}; sq = {o['id']: o.get('sequencia') for o in d['ordens']}
@@ -42,6 +42,23 @@ with sync_playwright() as p:
     ok(f'campanha Inseticida sozinha segue a ordem dela ({ordem()})', ordem() == ['o2', 'o3'])
     pg.select_option('[data-k="campanha"]', '*todas'); pg.wait_for_timeout(200)
     pg.click('[data-acao="copiar"]'); pg.wait_for_timeout(300)
+    # campanha concluída sai de "Todas" e vai para o grupo "Concluídas"; nome repetido ganha o início
+    pg.evaluate("""() => { const k='dap-proto-v1:dataset'; const d=JSON.parse(localStorage.getItem(k));
+      for (const o of d.ordens) if (o.campanhaId === 'c1') { o.status = 'concluida'; o.concluidaManual = true; }
+      d.campanhas.push({ ...d.campanhas.find(c => c.id === 'c2'), id: 'c3', inicio: '2026-11-10' });
+      d.ordens.push({ ...d.ordens.find(o => o.id === 'o2'), id: 'o9', numero: '3700', campanhaId: 'c3', sequencia: 1, sequenciaGeral: undefined });
+      localStorage.setItem(k, JSON.stringify(d)); }""")
+    pg.goto('about:blank'); pg.goto(URL + '#/relatorios/sequencia'); pg.wait_for_selector('[data-k="campanha"]')
+    pg.select_option('[data-k="campanha"]', '*todas'); pg.wait_for_timeout(300)
+    o = ordem()
+    ok(f'Todas em andamento: sem as OS da campanha concluída ({o})', all(x in ('o2', 'o3', 'o9') for x in o) and len(o) == 3)
+    nums = pg.evaluate("[...document.querySelectorAll('tr[data-os] [data-pos]')].map(i => i.value)")
+    ok(f'posições renumeradas a partir de 1 ({nums})', nums == ['1', '2', '3'])
+    ok('campanha concluída fica no grupo "Concluídas" do seletor', pg.locator('[data-k="campanha"] optgroup[label="Concluídas"] option').count() == 1 and 'Fungicida' in pg.locator('[data-k="campanha"] optgroup[label="Concluídas"] option').inner_text())
+    rot = pg.locator('[data-k="campanha"] option').all_inner_texts()
+    ok(f'nomes repetidos ganham início e nº de OS ({rot})', any('Inseticida 26/27 · início 31/10/2026 · 2 OS' in r for r in rot) and any('Inseticida 26/27 · início 10/11/2026 · 1 OS' in r for r in rot))
+    pg.select_option('[data-k="campanha"]', 'c1'); pg.wait_for_timeout(300)
+    ok('a campanha concluída continua consultável sozinha', len(ordem()) == 3)
     ok('sem erros de página', not erros)
     b.close()
 for r, n in res: print(r, n)
