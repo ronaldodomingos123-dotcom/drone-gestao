@@ -431,7 +431,8 @@ export function editarOS(id?: string, campanhaId?: string) {
     largura: 'lg',
     campos: [
       { k: 'numero', rot: 'Nº da OS', obrig: true },
-      { k: 'campanhaId', rot: 'Campanha', tipo: 'select', obrig: true, opcoes: opts(ds.campanhas, (x) => x.nome) },
+      // nome repetido (mesma campanha importada duas vezes): mostra o início e o nº de OS para escolher a certa
+      { k: 'campanhaId', rot: 'Campanha', tipo: 'select', obrig: true, opcoes: opts(ds.campanhas, (x) => ds.campanhas.filter((c) => c.nome.trim().toLowerCase() === x.nome.trim().toLowerCase()).length > 1 ? `${x.nome} · início ${x.inicio ? x.inicio.split('-').reverse().join('/') : '—'} · ${ds.ordens.filter((o) => o.campanhaId === x.id && o.status !== 'cancelada').length} OS` : x.nome) },
       { k: 'fazendaId', rot: 'Fazenda', tipo: 'select', obrig: true, opcoes: opts(ds.fazendas, (x) => `${x.codigo} · ${x.nome}`) },
       { k: 'tipo', rot: 'Tipo de aplicação', tipo: 'select', opcoes: [['Pulverização', 'Pulverização'], ['Aplicação de sólidos', 'Aplicação de sólidos'], ['Semeadura', 'Semeadura']] },
       { k: 'sequencia', rot: 'Sequência', tipo: 'numero', inteiro: true, min: 1 },
@@ -485,6 +486,12 @@ export function editarOS(id?: string, campanhaId?: string) {
       }, (y) => `${y.numero} · ${nome.fazenda(y.fazendaId)}`,
       (d, y) => {
         if (duplicado(d.ordens, y.id, (z: { numero: string; campanhaId: string; fazendaId: string; status: string }) => z.numero === y.numero && z.campanhaId === y.campanhaId && z.fazendaId === y.fazendaId && z.status !== 'cancelada')) return 'Já existe esta OS para a mesma fazenda e campanha.';
+        // OS passou para outra campanha: entra no fim da sequência dela e leva junto os voos e lançamentos já feitos
+        if (o && o.campanhaId !== y.campanhaId) {
+          if (y.sequencia === o.sequencia) y.sequencia = Math.max(0, ...d.ordens.filter((z) => z.campanhaId === y.campanhaId && z.id !== y.id).map((z) => z.sequencia ?? 0)) + 1;
+          for (const op of d.operacoes) if (op.osId === y.id) op.campanhaId = y.campanhaId;
+          for (const l of d.lancamentos ?? []) if (l.osId === y.id) l.campanhaId = y.campanhaId;
+        }
         const t = gravarTalhoesOS(d, y.fazendaId, x.talhoes, novoId);
         if (t.erros.length) return t.erros[0];
         y.itens = t.itens;

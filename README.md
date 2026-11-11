@@ -157,6 +157,11 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## OS: trocar de campanha (v1.7.22)
+
+- No formulário da OS, campanhas de mesmo nome aparecem com início e nº de OS.
+- Trocar a campanha de uma OS: ela entra no fim da sequência da campanha nova (se a posição não foi mudada à mão) e os voos e lançamentos já feitos nela passam junto para a campanha nova. A calda da OS (produtos do PDF) não muda.
+
 ## Sequência: "Todas em andamento" (v1.7.21)
 
 - A opção "Todas as campanhas" virou **"Todas em andamento"**: deixa de fora as campanhas concluídas (todas as OS não canceladas concluídas). A campanha volta se ganhar OS nova. Posições renumeradas a partir de 1 na hora.

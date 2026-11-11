@@ -59,6 +59,14 @@ with sync_playwright() as p:
     ok(f'nomes repetidos ganham início e nº de OS ({rot})', any('Inseticida 26/27 · início 31/10/2026 · 2 OS' in r for r in rot) and any('Inseticida 26/27 · início 10/11/2026 · 1 OS' in r for r in rot))
     pg.select_option('[data-k="campanha"]', 'c1'); pg.wait_for_timeout(300)
     ok('a campanha concluída continua consultável sozinha', len(ordem()) == 3)
+    # mesma campanha importada duas vezes: passar a OS nova para a campanha original pelo formulário da OS
+    pg.select_option('[data-k="campanha"]', 'c3'); pg.wait_for_timeout(300)
+    pg.click('tr[data-os="o9"] [data-editar="ordem"]'); pg.wait_for_selector('.modal [name="campanhaId"]')
+    opts = pg.locator('.modal [name="campanhaId"] option').all_inner_texts()
+    ok(f'formulário da OS diferencia as campanhas de mesmo nome ({opts})', any('início 31/10/2026' in x for x in opts) and any('início 10/11/2026' in x for x in opts))
+    pg.select_option('.modal [name="campanhaId"]', 'c2'); pg.locator('.modal .btn-pri').last.click(); pg.wait_for_timeout(500)
+    d = ds(); o9 = [o for o in d['ordens'] if o['id'] == 'o9'][0]
+    ok(f'OS passou para a campanha original e entrou no fim da sequência dela (seq {o9.get("sequencia")})', o9['campanhaId'] == 'c2' and o9.get('sequencia') == 3)
     ok('sem erros de página', not erros)
     b.close()
 for r, n in res: print(r, n)
