@@ -74,7 +74,10 @@ with sync_playwright() as p:
     with open(caminho, 'rb') as fh: cab = fh.read(24)
     larg = struct.unpack('>I', cab[16:20])[0]
     ok(f'imagem da sequência com 1200 px de largura mesmo em tela de 1000 px ({larg} px)', larg == 2400)
-    ok('títulos dos grupos não quebram linha', pg.evaluate("[...document.querySelectorAll('.seq-card header span')].every(s => getComputedStyle(s).whiteSpace === 'nowrap')"))
+    ok('títulos dos grupos não quebram linha nem são cortados ("…")', pg.evaluate("[...document.querySelectorAll('.seq-card header span')].every(s => getComputedStyle(s).whiteSpace === 'nowrap' && s.scrollWidth <= s.clientWidth + 1)"))
+    for w in (360, 700, 1000):
+        pg.set_viewport_size({'width': w, 'height': 800}); pg.wait_for_timeout(200)
+        ok(f'tela de {w} px: "Em andamento" inteiro', pg.evaluate("(() => { const s = [...document.querySelectorAll('.seq-card header span')].find(x => /andamento/i.test(x.textContent)); return !!s && s.scrollWidth <= s.clientWidth + 1 && s.getBoundingClientRect().right <= s.closest('header').getBoundingClientRect().right + 1; })()"))
     ok('sem erros de página', not erros)
     b.close()
 for r, n in res: print(r, n)

@@ -1,7 +1,7 @@
 {
   "name": "drone-agricola-prototype",
   "private": true,
-  "version": "1.7.23",
+  "version": "1.7.24",
   "type": "module",
   "description": "Protótipo isolado (Fase 1) de plataforma de gestão de aplicações com drones agrícolas. Dados 100% fictícios.",
   "scripts": {
