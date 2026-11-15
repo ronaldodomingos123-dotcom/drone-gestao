@@ -1077,3 +1077,18 @@ b.nv-ok { color: #1f7a45; } b.nv-aviso { color: #8a5a00; } b.nv-erro { color: #a
 #seq.exportando .seq-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 #seq.exportando .seq-card-lista { max-height: none; overflow: visible; }
 #seq.exportando .tabela-rolagem { overflow: visible; max-height: none; }
+/* Diário: para onde foi o tempo de cada drone */
+.tdr-barras { display: grid; gap: 10px; margin-bottom: 8px; }
+.tdr-linha { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 14px; align-items: center; }
+.tdr-nome b { display: block; font-size: 14px; } .tdr-nome small { color: var(--texto-3); font-size: 12px; }
+.tdr-barra { display: flex; height: 32px; border-radius: 8px; overflow: hidden; background: var(--linha); }
+.tdr-barra > div { display: flex; align-items: center; justify-content: center; min-width: 0; overflow: hidden; font-size: 12px; font-weight: 600; color: #fff; }
+.tdr-barra > div span { white-space: nowrap; overflow: hidden; text-overflow: clip; padding: 0 6px; }
+.tdr-barra em { font-style: normal; }
+.tdr-dr { white-space: nowrap; }
+.tdr-ar { background: #1b8a50; } .tdr-ef { background: #5fae84; } .tdr-chao { background: #e0a43a; color: #3a2600 !important; } .tdr-par { background: #8b97a8; }
+.tdr-leg { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--texto-2); margin: 4px 0 12px 214px; }
+.tdr-leg i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.tdr-tab small.bloco { font-weight: 500; text-transform: none; letter-spacing: 0; }
+.tdr-ok { color: var(--verde-700, #1f6b3f); } .tdr-baixo { color: #9a5b00; }
+@media (max-width: 700px) { .tdr-linha { grid-template-columns: minmax(0, 1fr); gap: 4px; } .tdr-leg { margin-left: 0; } .tdr-barra em { display: none; } }

@@ -6,7 +6,9 @@ import { areaOperacao, ultimo, formatarDuracao, intervaloDatas, produtividadeEfe
 import { datasComOperacao, editarObservacao, resumoDia, type FiltroDia } from '../domain/diario';
 import { adicionarParada, conteudoTurnoDia, editarEvento, excluirEvento, excluirTurnoDia, excluirVoos, voosNaHora } from '../domain/linhaTempo';
 import { novoId } from '../data/repository';
-import { vooNoPeriodo } from '../domain/vooApp';
+import { tempoPorDrone, vooNoPeriodo, type TempoDrone } from '../domain/vooApp';
+import { jornadaFrente } from '../domain/analytics';
+import { somaParadasMin } from '../domain/calc';
 import { MOTIVOS_PARADA, type MotivoParada } from '../domain/types';
 import { podeGravar } from '../data/nuvem';
 import { metaDiaria } from '../domain/metas';
@@ -185,6 +187,8 @@ function desenhar(host: HTMLElement) {
         ${progs.map((x) => blocoProgresso(x, progs.length > 1)).join('') || '<p class="vazio-txt">Sem campanha em andamento neste dia.</p>'}
       </section>
     </div>
+
+    ${blocoTempoDrones(tempoPorDrone(ds, r.ops, dia, (op) => somaParadasMin(idx.paradasPorOp.get(op.id) ?? []), jornadaFrente), ds.metas.haHoraDrone)}
 
     <div class="dia-dupla inv">
       <section class="cartao">
@@ -398,4 +402,37 @@ function blocoProgresso(x: import('../domain/diario').ProgressoCampanhaDia, vari
     <div class="dia-total"><span>Dias de operação</span><b>${x.diasOperacao}</b></div>
     <div class="dia-total prev"><span>Previsão de término (ritmo real até este dia)</span><b>${esc(prevTxt)}</b></div>
   </div>`;
+}
+
+// ---------------- Para onde foi o tempo de cada drone ----------------
+const durTdr = (min: number) => formatarDuracao(Math.round(min));
+function blocoTempoDrones(ts: TempoDrone[], meta: number): string {
+  if (!ts.length) return '';
+  const algumVoo = ts.some((t) => t.vooMin !== null);
+  const barra = (t: TempoDrone) => {
+    const J = Math.max(1, t.jornadaMin);
+    const parte = (cls: string, rot: string, min: number) => min > 0.5 ? `<div class="tdr-${cls}" style="width:${(min / J) * 100}%" title="${esc(rot)} ${esc(durTdr(min))}"><span><em>${esc(rot)} </em>${esc(durTdr(min).replace(/ /g, ''))}<em> · ${Math.round((min / J) * 100)}%</em></span></div>` : '';
+    return t.vooMin === null
+      ? parte('ef', 'Aplicando', t.efetivoMin) + parte('par', 'Paradas', t.paradoMin)
+      : parte('ar', 'No ar', t.vooMin) + parte('chao', 'Chão', t.chaoMin ?? 0) + parte('par', 'Paradas', t.paradoMin);
+  };
+  const lin = (t: TempoDrone) => {
+    const hahVoo = t.vooMin ? (t.areaVoo ?? t.area) / (t.vooMin / 60) : null;
+    const pctMeta = hahVoo !== null && meta ? hahVoo / meta : null;
+    return `<tr><td class="tdr-dr"><b>${esc(nome.aeronave(t.aeronaveId))}</b></td>
+      <td class="dir">${hahVoo === null ? '—' : `<b class="${pctMeta !== null && pctMeta < 0.95 ? 'tdr-baixo' : 'tdr-ok'}">${esc(fmtNum(hahVoo, 2))}</b><small class="bloco muted">${pctMeta !== null ? `${esc(fmtPct(pctMeta * 100, 0))} da meta` : ''}</small>`}</td>
+      <td class="dir">${esc(fmtNum(t.efetivoMin ? t.area / (t.efetivoMin / 60) : null, 2))}</td>
+      <td class="dir">${esc(fmtNum(t.jornadaMin ? t.area / (t.jornadaMin / 60) : null, 2))}</td>
+      <td class="dir">${t.voos ?? '—'}</td>
+      <td class="dir">${t.voos ? esc(fmtNum((t.areaVoo ?? t.area) / t.voos, 2)) : '—'}</td>
+      <td class="dir">${t.voos && t.chaoMin !== null ? `${esc(fmtNum(t.chaoMin / t.voos, 1))} min` : '—'}</td>
+      <td class="dir">${t.litros ? `${esc(fmtNum(t.litros / (t.areaVoo ?? t.area), 1))} L/ha` : '—'}</td></tr>`;
+  };
+  return `<section class="cartao tdr">
+    <header class="cartao-cab"><div><h2 class="dia-tit">${icone('relogio', 16)} Para onde foi o tempo de cada drone</h2><p>Jornada do drone = no ar (app do drone) + no chão (abastecer, trocar bateria, manobrar sem aplicar) + paradas lançadas</p></div></header>
+    <div class="tdr-barras">${ts.map((t) => `<div class="tdr-linha"><div class="tdr-nome"><b>${esc(nome.aeronave(t.aeronaveId))}</b><small>${esc(fmtNum(t.area, 2))} ha · jornada ${esc(durTdr(t.jornadaMin))}</small></div><div class="tdr-barra">${barra(t)}</div></div>`).join('')}</div>
+    <div class="tdr-leg">${algumVoo ? '<span><i class="tdr-ar"></i>No ar</span><span><i class="tdr-chao"></i>No chão (sem parada lançada)</span>' : '<span><i class="tdr-ef"></i>Aplicando (inclui o tempo no chão)</span>'}<span><i class="tdr-par"></i>Paradas lançadas</span>${ts.some((t) => t.vooMin === null) ? '<span class="muted" data-sem-exportar>Sem horas em voo: lance em Aeronaves → Horas em voo (app do drone)</span>' : ''}</div>
+    <div class="tabela-rolagem"><table class="tabela tabela-simples tdr-tab"><thead><tr><th>Drone</th><th class="dir">ha/h em voo<small class="bloco">meta ${esc(fmtNum(meta, 0))}</small></th><th class="dir">ha/h efetivo<small class="bloco">tempo de campo</small></th><th class="dir">ha/h da jornada</th><th class="dir">Voos</th><th class="dir">ha por voo</th><th class="dir">Chão por voo</th><th class="dir">Calda real</th></tr></thead>
+    <tbody>${ts.map(lin).join('')}</tbody></table></div>
+  </section>`;
 }

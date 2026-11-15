@@ -92,3 +92,33 @@ export function vooNoPeriodo(ds: Dataset, ops: Operacao[], de: string, ate: stri
   }
   return { area, minutos, doApp, doKml, foraDoPeriodo };
 }
+
+export interface TempoDrone {
+  aeronaveId: string; area: number;
+  jornadaMin: number; paradoMin: number; efetivoMin: number;
+  /** null = sem horas em voo para este drone no dia (registro do app ou KML) */
+  vooMin: number | null; chaoMin: number | null;
+  voos: number | null; litros: number | null; areaVoo: number | null;
+}
+
+/**
+ * Para onde foi o tempo de cada drone no dia: jornada (1º início ao último fim do drone) = no ar + no chão + paradas lançadas.
+ * "No chão" = efetivo − no ar (abastecer, trocar bateria, manobrar sem aplicar). No ar: registro do app do drone de UM dia
+ * (de = até = dia) ou, sem ele, o KML dos voos.
+ */
+export function tempoPorDrone(ds: Dataset, ops: Operacao[], dia: string, paradoPorOp: (op: Operacao) => number, jornadaPorOps: (ops: Operacao[]) => number): TempoDrone[] {
+  const ids = [...new Set(ops.filter((o) => o.status !== 'impedida_clima').map((o) => o.aeronaveId))];
+  return ids.map((aid) => {
+    const os = ops.filter((o) => o.aeronaveId === aid && o.status !== 'impedida_clima');
+    const area = os.reduce((s, o) => s + areaOperacao(o), 0);
+    const efetivoMin = os.reduce((s, o) => s + (o.tempoEfetivoMin ?? 0), 0);
+    const paradoMin = os.reduce((s, o) => s + paradoPorOp(o), 0);
+    const jornadaMin = jornadaPorOps(os);
+    const reg = (ds.voosApp ?? []).find((r) => r.aeronaveId === aid && r.de === dia && r.ate === dia);
+    const kml = os.filter((o) => o.voo && o.voo.tempoVooMin > 0);
+    let vooMin: number | null = null, voos: number | null = null, litros: number | null = null, areaVoo: number | null = null;
+    if (reg) { vooMin = reg.horasVoo * 60; voos = reg.voos ?? null; litros = reg.litros ?? null; areaVoo = reg.areaHa; }
+    else if (kml.length) { vooMin = kml.reduce((s, o) => s + (o.voo?.tempoVooMin ?? 0), 0); voos = kml.reduce((s, o) => s + (o.voo?.cargas ?? 0), 0) || null; litros = kml.reduce((s, o) => s + (o.voo?.volumeL ?? 0), 0) || null; areaVoo = kml.reduce((s, o) => s + areaOperacao(o), 0); }
+    return { aeronaveId: aid, area, jornadaMin, paradoMin, efetivoMin, vooMin, chaoMin: vooMin === null ? null : Math.max(0, efetivoMin - vooMin), voos, litros, areaVoo };
+  }).sort((a, b) => b.area - a.area);
+}
