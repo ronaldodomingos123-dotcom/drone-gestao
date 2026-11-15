@@ -65,7 +65,8 @@ export function renderFechamento(raiz: HTMLElement) {
   const ds = estado.ds;
   const saldo = saldoOS();
   const ordens = ds.ordens.filter((o) => o.status !== 'cancelada').sort((a, b) => a.campanhaId.localeCompare(b.campanhaId) || (a.sequencia ?? 0) - (b.sequencia ?? 0));
-  const rotOS = (id: string) => { const o = ds.ordens.find((x) => x.id === id); return o ? `${nome.fazenda(o.fazendaId)} · OS ${o.numero} · saldo ${fmtNum(saldo.get(o.id) ?? 0, 2)} ha` : ''; };
+  // a mesma fazenda pode ter OS em mais de uma campanha: o nome da campanha vai no texto (no tablet o grupo não aparece depois de escolhido)
+  const rotOS = (id: string) => { const o = ds.ordens.find((x) => x.id === id); return o ? `${nome.campanha(o.campanhaId)} · ${nome.fazenda(o.fazendaId)} · OS ${o.numero} · saldo ${fmtNum(saldo.get(o.id) ?? 0, 2)} ha` : ''; };
   const optsOS = (sel: string) => `<option value="">Escolha a fazenda / OS…</option>${ds.campanhas.map((c) => { const os = ordens.filter((o) => o.campanhaId === c.id && ((saldo.get(o.id) ?? 0) > 0.005 || o.id === sel)); return os.length ? `<optgroup label="${esc(c.nome)}">${os.map((o) => opt(o.id, rotOS(o.id), sel)).join('')}</optgroup>` : ''; }).join('')}`;
   const acs = ds.aeronaves.filter((a) => a.status !== 'indisponivel');
   const pilotos = ds.colaboradores.filter((c) => c.funcao === 'Piloto' && c.ativo);
