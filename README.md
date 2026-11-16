@@ -157,6 +157,13 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Tempo de cada drone e horas em voo opcionais no Fechamento (v1.7.25)
+
+- Diário de aplicações: quadro "Para onde foi o tempo de cada drone" — barra por drone com no ar, no chão (abastecer, trocar bateria, manobrar) e paradas lançadas; tabela com ha/h em voo (e % da meta), ha/h efetivo, ha/h da jornada, voos, ha por voo, chão por voo e calda real (L/ha).
+- Fechamento do dia: bloco recolhido "Horas em voo do app do drone (opcional)", com horas, voos e litros por drone. Em branco, o fechamento grava como antes.
+- As horas aceitam decimal (3,36) ou hh:mm (3:22). Acima de 80 ha/h o fechamento é bloqueado (horas provavelmente em minutos).
+- Grava um registro por drone, dia e turno; turnos diferentes no mesmo dia se somam. Um registro de vários dias lançado em Aeronaves tem precedência e o Fechamento avisa que não grava por cima.
+
 ## Sequência: títulos dos grupos inteiros (v1.7.24)
 
 - "Em andamento" (e os outros títulos dos grupos) não é mais cortado com "…": o título não encolhe; se faltar espaço, o contador desce para a linha de baixo. Testado em telas de 360, 700 e 1000 px e na imagem.

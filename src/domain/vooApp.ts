@@ -21,6 +21,8 @@ export interface RegistroVooApp {
    *  não no ha/h em voo (as horas desse trecho também não foram registradas). */
   ajusteHa?: number;
   ajusteMotivo?: string;
+  /** lançado pelo Fechamento do dia: um registro por drone, dia e turno (os turnos do dia somam) */
+  turnoId?: string;
   criadoEm: string;
 }
 
@@ -54,12 +56,13 @@ export function gravarRegistroVoo(ds: Dataset, r: Omit<RegistroVooApp, 'id' | 'c
   if (haH > 80) return `Área ÷ horas = ${haH.toFixed(1).replace('.', ',')} ha/h, alto demais para um drone: confira se as horas estão em horas (22,62) e não em minutos.`;
   ds.voosApp ??= [];
   // períodos do mesmo drone não podem se sobrepor (senão a hora conta duas vezes); o mesmo período exato substitui
-  const igual = ds.voosApp.find((x) => x.aeronaveId === r.aeronaveId && x.de === r.de && x.ate === r.ate);
-  const sobre = ds.voosApp.find((x) => x !== igual && x.aeronaveId === r.aeronaveId && x.de <= r.ate && r.de <= x.ate);
+  const igual = ds.voosApp.find((x) => x.aeronaveId === r.aeronaveId && x.de === r.de && x.ate === r.ate && (x.turnoId ?? '') === (r.turnoId ?? ''));
+  const sobre = ds.voosApp.find((x) => x !== igual && x.aeronaveId === r.aeronaveId && x.de <= r.ate && r.de <= x.ate && !(x.turnoId && r.turnoId && x.turnoId !== r.turnoId));
   if (sobre) return `${ac.identificacao} já tem registro de ${sobre.de.split('-').reverse().join('/')} a ${sobre.ate.split('-').reverse().join('/')} que cruza este período. Exclua ou ajuste aquele antes.`;
   const limpo: RegistroVooApp = { id: igual?.id ?? gerarId('vapp'), criadoEm: agora, aeronaveId: r.aeronaveId, de: r.de, ate: r.ate, horasVoo: r.horasVoo, areaHa: r.areaHa,
     ...(r.voos ? { voos: r.voos } : {}), ...(r.litros ? { litros: r.litros } : {}), ...(r.observacao?.trim() ? { observacao: r.observacao.trim() } : {}),
-    ...(r.ajusteHa ? { ajusteHa: r.ajusteHa, ajusteMotivo: r.ajusteMotivo?.trim() || 'perda de sinal' } : {}) };
+    ...(r.ajusteHa ? { ajusteHa: r.ajusteHa, ajusteMotivo: r.ajusteMotivo?.trim() || 'perda de sinal' } : {}),
+    ...(r.turnoId ? { turnoId: r.turnoId } : {}) };
   ds.voosApp = [...ds.voosApp.filter((x) => x !== igual), limpo];
   registrar(ds, { entidade: 'aeronave', entidadeId: ac.id, acao: igual ? 'editar' : 'criar', resumo: `Horas em voo (app do drone) ${ac.identificacao} ${r.de} a ${r.ate}: ${r.horasVoo.toFixed(2).replace('.', ',')} h · ${r.areaHa.toFixed(2).replace('.', ',')} ha${r.ajusteHa ? ` + ${r.ajusteHa.toFixed(2).replace('.', ',')} ha sem registro (${r.ajusteMotivo?.trim() || 'perda de sinal'})` : ''}` });
   return null;
@@ -114,11 +117,34 @@ export function tempoPorDrone(ds: Dataset, ops: Operacao[], dia: string, paradoP
     const efetivoMin = os.reduce((s, o) => s + (o.tempoEfetivoMin ?? 0), 0);
     const paradoMin = os.reduce((s, o) => s + paradoPorOp(o), 0);
     const jornadaMin = jornadaPorOps(os);
-    const reg = (ds.voosApp ?? []).find((r) => r.aeronaveId === aid && r.de === dia && r.ate === dia);
+    const regs = (ds.voosApp ?? []).filter((r) => r.aeronaveId === aid && r.de === dia && r.ate === dia);
+    const reg = regs.length ? { horasVoo: regs.reduce((a, r) => a + r.horasVoo, 0), areaHa: regs.reduce((a, r) => a + r.areaHa, 0), voos: regs.every((r) => r.voos) ? regs.reduce((a, r) => a + (r.voos ?? 0), 0) : undefined, litros: regs.every((r) => r.litros) ? regs.reduce((a, r) => a + (r.litros ?? 0), 0) : undefined } : null;
     const kml = os.filter((o) => o.voo && o.voo.tempoVooMin > 0);
     let vooMin: number | null = null, voos: number | null = null, litros: number | null = null, areaVoo: number | null = null;
     if (reg) { vooMin = reg.horasVoo * 60; voos = reg.voos ?? null; litros = reg.litros ?? null; areaVoo = reg.areaHa; }
     else if (kml.length) { vooMin = kml.reduce((s, o) => s + (o.voo?.tempoVooMin ?? 0), 0); voos = kml.reduce((s, o) => s + (o.voo?.cargas ?? 0), 0) || null; litros = kml.reduce((s, o) => s + (o.voo?.volumeL ?? 0), 0) || null; areaVoo = kml.reduce((s, o) => s + areaOperacao(o), 0); }
     return { aeronaveId: aid, area, jornadaMin, paradoMin, efetivoMin, vooMin, chaoMin: vooMin === null ? null : Math.max(0, efetivoMin - vooMin), voos, litros, areaVoo };
   }).sort((a, b) => b.area - a.area);
+}
+
+/** Horas em voo digitadas na ficha (texto como o app do drone mostra: 3,36 ou 3:22) → números; null = não informado. */
+export interface VooFicha { horas: string; voos: string; litros: string }
+export function lerVooFicha(v: VooFicha | undefined): { horas: number; voos: number | null; litros: number | null } | 'invalido' | null {
+  if (!v || !v.horas?.trim()) return null;
+  const horas = lerHoras(v.horas);
+  if (horas === null || horas <= 0) return 'invalido';
+  const n = (t: string) => { const x = t?.trim(); if (!x) return null; const k = Number(x.includes(',') ? x.replace(/\./g, '').replace(',', '.') : x); return Number.isFinite(k) && k > 0 ? k : null; };
+  return { horas, voos: n(v.voos) !== null ? Math.round(n(v.voos)!) : null, litros: n(v.litros) };
+}
+
+/** Registro de período (vários dias, ou de outro lançamento) que já cobre este drone neste dia: as horas da ficha não entram. */
+export function registroQueCobre(ds: Dataset, aeronaveId: string, dia: string, turnoId: string): RegistroVooApp | undefined {
+  void turnoId;
+  return (ds.voosApp ?? []).find((r) => r.aeronaveId === aeronaveId && r.de !== r.ate && r.de <= dia && dia <= r.ate);
+}
+
+/** Grava (ou troca) as horas em voo do drone para o dia/turno da ficha. Registro manual do mesmo dia sem turno é substituído. */
+export function gravarVooDaFicha(ds: Dataset, aeronaveId: string, dia: string, turnoId: string, v: { horas: number; voos: number | null; litros: number | null }, areaHa: number, gerarId: (p: string) => string, agora: string): string | null {
+  ds.voosApp = (ds.voosApp ?? []).filter((r) => !(r.aeronaveId === aeronaveId && r.de === dia && r.ate === dia && (!r.turnoId || r.turnoId === turnoId)));
+  return gravarRegistroVoo(ds, { aeronaveId, de: dia, ate: dia, horasVoo: v.horas, areaHa, voos: v.voos ?? undefined, litros: v.litros ?? undefined, observacao: 'Fechamento do dia', turnoId: turnoId || undefined }, gerarId, agora);
 }

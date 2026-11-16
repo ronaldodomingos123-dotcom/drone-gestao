@@ -1092,3 +1092,6 @@ b.nv-ok { color: #1f7a45; } b.nv-aviso { color: #8a5a00; } b.nv-erro { color: #a
 .tdr-tab small.bloco { font-weight: 500; text-transform: none; letter-spacing: 0; }
 .tdr-ok { color: var(--verde-700, #1f6b3f); } .tdr-baixo { color: #9a5b00; }
 @media (max-width: 700px) { .tdr-linha { grid-template-columns: minmax(0, 1fr); gap: 4px; } .tdr-leg { margin-left: 0; } .tdr-barra em { display: none; } }
+.fch-voo { margin-top: 12px; border-top: 1px dashed var(--linha); padding-top: 10px; }
+.fch-voo summary { cursor: pointer; font-weight: 600; font-size: 13.5px; display: inline-flex; gap: 6px; align-items: center; }
+.fch-voo .nota { margin: 6px 0 8px; }

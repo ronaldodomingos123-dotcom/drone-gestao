@@ -18,9 +18,11 @@ import { aplicacoes, aplicadoPorItem, chaveItem, hhmmParaMin, MIN_POR_DIA, round
 import { distribuirDesconto, type TalhaoLanc } from './lancamento';
 import { registrar } from './base';
 import { guardarAprendizadoKml } from './kmlVoo';
+import { gravarVooDaFicha, lerVooFicha, registroQueCobre } from './vooApp';
 import type { Dataset, LeituraClima, Operacao, Parada } from './types';
 
-export interface DroneDia { aeronaveId: string; pilotoId: string; area: number | null; /** vazio = janela do dia */ inicio: string; fim: string; /** paradas só deste drone (ex.: quebra) */ pausas: PausaCampo[] }
+export interface DroneDia { aeronaveId: string; pilotoId: string; area: number | null; /** vazio = janela do dia */ inicio: string; fim: string; /** paradas só deste drone (ex.: quebra) */ pausas: PausaCampo[];
+  /** opcional: horas no ar, voos e calda (L) do app do drone, como texto digitado */ vooApp?: import('./vooApp').VooFicha }
 export interface FazendaDia { osId: string; real: number | null; concluir: boolean; /** talhões onde ficou o desconto (ao concluir com saldo) */ descontoEm: string[]; /** volume de calda só desta fazenda (L/ha); vazio = o do dia */ volumeLHa?: number | null }
 export interface ClimaDia { tIni: number | null; urIni: number | null; vIni: number | null; tFim: number | null; urFim: number | null; vFim: number | null }
 export interface FichaDia {
@@ -416,8 +418,19 @@ export function previaFechamento(dsOrig: Dataset, f: FichaDia, gerarId: (p: stri
       ? `Fechamento do dia com KML de voo: área do drone por fazenda${k?.dividido ? ' (dividida entre OS vizinhas pelo real)' : ''}, cargas, tempo em voo, volume, altura, velocidade e espaçamento medidos. Horário de cada trecho e divisão por talhão estimados.`
       : `Fechamento do dia (ficha diária). ${algumaEstimada ? 'Área do drone por fazenda estimada por proporção (salvo células informadas); ' : ''}horário de cada trecho e divisão por talhão estimados.`;
   }
-  const tempoVoo = f.drones.map((d) => { const vs = Object.entries(f.kml ?? {}).filter(([kk]) => kk.endsWith(`|${d.aeronaveId}`)); return vs.length ? round(vs.reduce((s2, [, m]) => s2 + m.tempoVooMin, 0), 1) : null; });
-  f.drones.forEach((d, j) => { const tv = tempoVoo[j], t = tempos[j]; if (tv !== null && t && tv > t.efetivo + 5) avisos.push(`${nomeAc(d.aeronaveId)}: ${Math.round(tv)} min em voo no KML, mais que o tempo efetivo da ficha (${t.efetivo} min). Confira a janela e as paradas.`); });
+  // horas em voo (opcional): do app do drone digitadas na ficha; senão, do KML
+  const tempoVoo = f.drones.map((d) => {
+    const v = lerVooFicha(d.vooApp);
+    if (v === 'invalido') { erros.push(`${nomeAc(d.aeronaveId)}: horas em voo inválidas — use como o app do drone mostra (3,36) ou hh:mm (3:22).`); return null; }
+    if (v) {
+      if (d.area && d.area / v.horas > 80) erros.push(`${nomeAc(d.aeronaveId)}: ${round(d.area / v.horas, 1)} ha/h no ar é alto demais — as horas parecem estar em minutos.`);
+      const cobre = registroQueCobre(dsOrig, d.aeronaveId, f.data, f.turnoId);
+      if (cobre) avisos.push(`${nomeAc(d.aeronaveId)}: já há horas em voo lançadas de ${cobre.de.split('-').reverse().join('/')} a ${cobre.ate.split('-').reverse().join('/')} (Aeronaves); as horas desta ficha não serão gravadas para não contar duas vezes.`);
+      return round(v.horas * 60, 1);
+    }
+    const vs = Object.entries(f.kml ?? {}).filter(([kk]) => kk.endsWith(`|${d.aeronaveId}`)); return vs.length ? round(vs.reduce((s2, [, m]) => s2 + m.tempoVooMin, 0), 1) : null;
+  });
+  f.drones.forEach((d, j) => { const tv = tempoVoo[j], t = tempos[j]; if (tv !== null && t && tv > t.efetivo + 5) avisos.push(`${nomeAc(d.aeronaveId)}: ${Math.round(tv)} min em voo, mais que o tempo efetivo da ficha (${t.efetivo} min). Confira a janela e as paradas.`); });
   const outrosTurnos = dsOrig.operacoes.filter((o) => !!o.fechamentoDia && o.fechamentoDia === f.data && o.turnoId !== f.turnoId && f.drones.some((d) => d.aeronaveId === o.aeronaveId));
   if (outrosTurnos.length) avisos.push(`Já há ${outrosTurnos.length} voo(s) de outro turno em ${f.data.split('-').reverse().join('/')} com estes drones; eles são mantidos (este fechamento soma).`);
   if (antigas.length) avisos.push(`Substitui ${antigas.length} voo(s) do fechamento anterior de ${[...new Set(antigas.map((o) => o.fechamentoDia!))].map((d) => d.split('-').reverse().join('/')).join(' e ')}.`);
@@ -434,6 +447,16 @@ export function gravarFechamento(ds: Dataset, f: FichaDia, gerarId: (p: string) 
   ds.operacoes.push(...p.ops);
   ds.paradas.push(...p.paradas);
   guardarAprendizadoKml(ds, f);
+  for (const d of f.drones) {
+    const v = lerVooFicha(d.vooApp);
+    if (!v || v === 'invalido' || !d.area) {
+      // regravou sem horas: tira as que esta mesma ficha (dia + turno) tinha gravado
+      if (!v) ds.voosApp = (ds.voosApp ?? []).filter((r) => !(r.aeronaveId === d.aeronaveId && r.de === f.data && r.ate === f.data && r.observacao === 'Fechamento do dia' && (r.turnoId ?? '') === (f.turnoId || '')));
+      continue;
+    }
+    if (registroQueCobre(ds, d.aeronaveId, f.data, f.turnoId)) continue;
+    gravarVooDaFicha(ds, d.aeronaveId, f.data, f.turnoId, v, d.area, gerarId, agoraISO);
+  }
   for (const [osId, ts] of Object.entries(f.adicionarNaOS ?? {})) {
     const os = ds.ordens.find((o) => o.id === osId);
     if (!os) continue;
