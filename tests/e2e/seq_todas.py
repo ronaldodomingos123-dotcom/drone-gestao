@@ -1,5 +1,5 @@
 """Sequência: opção "Todas as campanhas" com ordem própria; OS nova (de qualquer campanha) entra no fim; a ordem de cada campanha não muda."""
-import pathlib, re
+import pathlib, re, sys
 from playwright.sync_api import sync_playwright
 URL = pathlib.Path('dist/index.html').resolve().as_uri() + '?modo=local'
 res = []
@@ -24,6 +24,8 @@ with sync_playwright() as p:
     ok(f'Todas: campanha mais antiga primeiro, cada uma na sua ordem ({ordem()})', ordem() == ['o1', 'o4', 'o2', 'o3'])
     t = pg.locator('#seq').inner_text()
     ok('título "Todas as campanhas", total programado das 4 OS (654,00) e nome da campanha na linha', 'Todas em andamento' in t and '654,00' in t and 'Inseticida 26/27' in pg.locator('tr[data-os="o2"]').inner_text())
+    ok('cada linha mostra a data em que a OS saiu (30/10/2026)', 'saiu 30/10/2026' in pg.locator('tr[data-os="o2"]').inner_text() and 'início' not in pg.locator('tr[data-os="o2"]').inner_text())
+    if len(sys.argv) > 1: pg.locator('#seq-tab').screenshot(path=sys.argv[1])
     ok('sem botão "Nova OS" em Todas', pg.locator('[data-novo="ordem"]').count() == 0)
     pg.fill('tr[data-os="o3"] [data-pos]', '1'); pg.press('tr[data-os="o3"] [data-pos]', 'Enter'); pg.wait_for_timeout(400)
     d = ds(); g = {o['id']: o.get('sequenciaGeral') for o in d['ordens']}; sq = {o['id']: o.get('sequencia') for o in d['ordens']}

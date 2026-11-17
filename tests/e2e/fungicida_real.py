@@ -46,6 +46,7 @@ with sync_playwright() as p:
     ok('20/10: Ipê pronto (2 voos) com calda 15 L/ha', 'Pronto para gravar: 2 voo(s)' in pg.locator('#fch-previa').inner_text() and '15,0 L/ha' in pg.locator('#fch-previa').inner_text())
     pg.click('[data-acao="gravar"]'); pg.wait_for_url(re.compile('relatorios/diario')); pg.wait_for_timeout(300)
     ir('relatorios/sequencia'); pg.wait_for_selector('#seq-tab tbody tr')
+    if pg.is_checked('[data-k="sofalta"]'): pg.uncheck('[data-k="sofalta"]'); pg.wait_for_timeout(300)  # ver também as concluídas
     tab = pg.locator('#seq-tab').inner_text()
     ok('sequência: aplicado 32,17 · 16,01 · 28,22 · 43,09 · 80,54', all(x in tab for x in ['32,17', '16,01', '28,22', '43,09', '80,54']))
     ok('fechamento da campanha: obstáculos 0,53 + 1,84 + 0,48 = 2,85 ha', '2,85' in pg.locator('.seq-fech').inner_text())

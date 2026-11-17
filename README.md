@@ -157,11 +157,12 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
-## Sequência: "Só o que falta fazer" (v1.7.26)
+## Sequência: "Só o que falta fazer" e data em que a OS saiu (v1.7.26)
 
 - Caixa "Só o que falta fazer", marcada por padrão: esconde as OS concluídas da tabela, da lista do cartão Concluídas e do quadro de fechamento. A escolha fica guardada no aparelho.
 - O topo (programado, aplicado, obstáculos, falta aplicar, executado) continua com a campanha inteira; a tabela indica quantas concluídas estão ocultas.
 - A imagem segue a tela; CSV, Excel, PDF e "Copiar resumo" continuam com a sequência completa.
+- Cada linha mostra a data em que a OS saiu ("saiu dd/mm/aaaa", campo Emissão da OS; na importação é a data do dia). Em "Todas em andamento" a linha mostra o nome da campanha e essa data no lugar do "início". CSV, Excel e PDF ganham a coluna "OS saiu em".
 
 ## Tempo de cada drone e horas em voo opcionais no Fechamento (v1.7.25)
 

@@ -1099,3 +1099,4 @@ b.nv-ok { color: #1f7a45; } b.nv-aviso { color: #8a5a00; } b.nv-erro { color: #a
 .seq-sofalta { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 600; white-space: nowrap; cursor: pointer; }
 .seq-sofalta input { width: 17px; height: 17px; accent-color: #1b8a50; }
 .seq-ocultas { color: var(--texto-2, #5b6b83); font-weight: 400; }
+.seq-saiu { font-weight: 600; color: var(--texto, #15233b); }

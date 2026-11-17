@@ -257,7 +257,7 @@ function desenharTabela(host: HTMLElement) {
     return `<tr class="${prox ? 'seq-proxima' : ''} seq-${l.grupo}" data-os="${esc(l.os.id)}" data-seq="${seqDe(l.os) ?? 0}">
       <td class="seq-pos-cel"><span class="seq-alca" data-arrastar title="Arrastar para mudar a ordem" aria-hidden="true">⠿</span><span class="seq-s">S</span><input class="seq-pos" type="number" min="1" max="${linhas.length}" inputmode="numeric" value="${seqDe(l.os) ?? ''}" data-pos="${esc(l.os.id)}" aria-label="Posição de ${esc(f?.nome ?? '')} na sequência" title="Digite a nova posição e tecle Enter"><span class="seq-setas"><button class="btn-icone" data-acao="subir" data-id="${esc(l.os.id)}" aria-label="Subir" title="Subir na sequência">▲</button><button class="btn-icone" data-acao="descer" data-id="${esc(l.os.id)}" aria-label="Descer" title="Descer na sequência">▼</button></span></td>
       <td class="m-oculta">${esc(f?.codigo ?? '')}</td>
-      <td><b>${esc(f?.nome ?? '—')}</b>${prox ? ' <span class="selo selo-ok">Próxima</span>' : ''}<small class="bloco">${ehTodas() ? `<b class="seq-camp">${esc(rotuloCampanha(l.os.campanhaId))}</b> · ` : ''}OS ${esc(l.os.numero)}${l.os.titulo ? ` · ${esc(l.os.titulo)}` : ''}${geral ? ' · talhão geral' : ` · ${l.os.itens.length} talhão(ões)`}</small></td>
+      <td><b>${esc(f?.nome ?? '—')}</b>${prox ? ' <span class="selo selo-ok">Próxima</span>' : ''}<small class="bloco">${ehTodas() ? `<b class="seq-camp">${esc(ds.campanhas.find((c) => c.id === l.os.campanhaId)?.nome ?? '—')}</b> · ` : ''}${l.os.emissao ? `<span class="seq-saiu">saiu ${esc(fmtData(l.os.emissao))}</span> · ` : ''}OS ${esc(l.os.numero)}${l.os.titulo ? ` · ${esc(l.os.titulo)}` : ''}${geral ? ' · talhão geral' : ` · ${l.os.itens.length} talhão(ões)`}</small></td>
       <td class="dir">${esc(fmtNum(l.plan, 2))}</td>
       <td class="dir"><button type="button" class="seq-apl" data-acao="aplicado" data-id="${esc(l.os.id)}" title="Lançar/editar o aplicado e o desconto">${esc(fmtNum(l.apl, 2))} <span class="seq-lapis">${icone('config', 12)}</span></button></td>
       <td class="dir ${l.saldo < -0.01 ? 'txt-critico' : ''}"><b>${esc(fmtNum(l.saldo, 2))}</b>${l.obst > 0.005 ? '<small class="bloco seq-obst">obstáculo</small>' : ''}</td>
@@ -293,12 +293,12 @@ function relSequencia(): Relatorio | null {
   const r: Relatorio = {
     id: 'sequencia', titulo: `Sequência de aplicação — ${camp.nome}`, periodo: null, filtros: [`Campanha: ${camp.nome} (${camp.tipo}, prazo ${fmtData(camp.fim)})`], geradoEm: agora, responsavel: responsavelAtual(),
     indicadores: [{ rotulo: 'Programado', valor: T.plan, tipo: 'ha' }, { rotulo: 'Aplicado', valor: T.apl, tipo: 'ha' }, { rotulo: 'Obstáculos', valor: T.obst, tipo: 'ha' }, { rotulo: 'Falta aplicar', valor: T.falta, tipo: 'ha' }, { rotulo: 'Executado', valor: T.pct, tipo: 'pct' }],
-    secoes: [{ titulo: 'Sequência', colunas: [{ titulo: 'Seq.', tipo: 'int' }, { titulo: 'FN', tipo: 'texto' }, { titulo: 'Fazenda', tipo: 'texto' }, { titulo: 'OS', tipo: 'texto' }, { titulo: 'Situação', tipo: 'texto' }, { titulo: 'Área (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Aplicado (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Saldo (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Obstáculo (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Progresso', tipo: 'pct' }],
-      linhas: linhas.map((l) => [seqDe(l.os) ?? null, fz(l)?.codigo ?? '', fz(l)?.nome ?? '', l.os.numero, GR[l.grupo], round(l.plan, 4), round(l.apl, 4), round(l.saldo, 4), round(l.obst, 4), l.pct]) }],
+    secoes: [{ titulo: 'Sequência', colunas: [{ titulo: 'Seq.', tipo: 'int' }, { titulo: 'FN', tipo: 'texto' }, { titulo: 'Fazenda', tipo: 'texto' }, { titulo: 'OS', tipo: 'texto' }, { titulo: 'OS saiu em', tipo: 'texto' }, { titulo: 'Situação', tipo: 'texto' }, { titulo: 'Área (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Aplicado (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Saldo (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Obstáculo (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Progresso', tipo: 'pct' }],
+      linhas: linhas.map((l) => [seqDe(l.os) ?? null, fz(l)?.codigo ?? '', fz(l)?.nome ?? '', l.os.numero, l.os.emissao ? fmtData(l.os.emissao) : '', GR[l.grupo], round(l.plan, 4), round(l.apl, 4), round(l.saldo, 4), round(l.obst, 4), l.pct]) }],
     notas: ['Obstáculo = programado − aplicado nas OS concluídas; não entra no "falta aplicar".'],
   };
   const s0 = r.secoes[0];
-  s0.totais = ['Total', null, `${linhas.length} OS`, null, null, round(T.plan, 4), round(T.apl, 4), round(T.plan - T.apl, 4), round(T.obst, 4), T.pct];
+  s0.totais = ['Total', null, `${linhas.length} OS`, null, null, null, round(T.plan, 4), round(T.apl, 4), round(T.plan - T.apl, 4), round(T.obst, 4), T.pct];
   return r;
 }
 
