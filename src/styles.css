@@ -1095,3 +1095,7 @@ b.nv-ok { color: #1f7a45; } b.nv-aviso { color: #8a5a00; } b.nv-erro { color: #a
 .fch-voo { margin-top: 12px; border-top: 1px dashed var(--linha); padding-top: 10px; }
 .fch-voo summary { cursor: pointer; font-weight: 600; font-size: 13.5px; display: inline-flex; gap: 6px; align-items: center; }
 .fch-voo .nota { margin: 6px 0 8px; }
+/* Sequência: só o que falta fazer */
+.seq-sofalta { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.seq-sofalta input { width: 17px; height: 17px; accent-color: #1b8a50; }
+.seq-ocultas { color: var(--texto-2, #5b6b83); font-weight: 400; }

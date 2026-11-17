@@ -23,6 +23,11 @@ import { abrirLancarAplicado } from './lancarAplicado';
 const CHAVE = `${PREFIXO}sequencia`;
 let campanhaId = '';
 let busca = '';
+/** Esconde as OS concluídas na tela (tabela, cartão e fechamento). Padrão: ligado. */
+let soFalta = true;
+/** Esconde só se ainda houver algo a fazer: campanha toda concluída continua consultável. */
+const esconderConcl = (ls: { grupo: string }[]) => soFalta && ls.some((l) => l.grupo !== 'concluida');
+function salvarPref() { try { localStorage.setItem(CHAVE, JSON.stringify({ campanhaId, soFalta })); } catch { /* opcional */ } }
 
 /** "Todas as campanhas": uma sequência só com as OS de todas as campanhas (ordem própria; OS nova entra no fim). */
 const TODAS = '*todas';
@@ -80,7 +85,7 @@ function totaisSeq(linhas: LinhaSeq[]) {
 
 export function renderSequencia(raiz: HTMLElement) {
   const ds = estado.ds;
-  try { const s = JSON.parse(localStorage.getItem(CHAVE) ?? 'null'); if (s?.campanhaId) campanhaId = s.campanhaId; } catch { /* opcional */ }
+  try { const s = JSON.parse(localStorage.getItem(CHAVE) ?? 'null'); if (s?.campanhaId) campanhaId = s.campanhaId; if (typeof s?.soFalta === 'boolean') soFalta = s.soFalta; } catch { /* opcional */ }
   if (campanhaId !== TODAS && !ds.campanhas.some((c) => c.id === campanhaId)) {
     // campanha com operação mais recente, ou a primeira
     const ultima = [...ds.operacoes].sort((a, b) => b.data.localeCompare(a.data))[0];
@@ -91,7 +96,8 @@ export function renderSequencia(raiz: HTMLElement) {
   const host = raiz.querySelector('#seq') as HTMLElement;
   host.addEventListener('change', (e) => {
     const el = e.target as HTMLSelectElement;
-    if (el.dataset.k === 'campanha') { campanhaId = el.value; try { localStorage.setItem(CHAVE, JSON.stringify({ campanhaId })); } catch { /* opcional */ } desenhar(host); }
+    if (el.dataset.k === 'campanha') { campanhaId = el.value; salvarPref(); desenhar(host); }
+    if (el.dataset.k === 'sofalta') { soFalta = (el as unknown as HTMLInputElement).checked; salvarPref(); desenhar(host); }
   });
   host.addEventListener('input', (e) => { const el = e.target as HTMLInputElement; if (el.dataset.k === 'busca') { busca = el.value; desenharTabela(host); } });
   // posição digitada: aplica ao confirmar (Enter ou sair do campo)
@@ -191,13 +197,14 @@ function desenhar(host: HTMLElement) {
   const cartao = (g: LinhaSeq['grupo'], titulo: string, cls: string, rodRot: string, rodVal: number, valor: (l: LinhaSeq) => number) => {
     const ls = linhas.filter((l) => l.grupo === g);
     return `<section class="seq-card ${cls}"><header><span>${titulo}</span><b>${ls.length}</b></header>
-      <div class="seq-card-lista">${ls.map((l) => `<div class="seq-card-it ${l.os.id === proxima?.os.id ? 'prox' : ''}">${l.os.id === proxima?.os.id ? `<span class="seq-tag-prox">Próxima · S${seqDe(l.os) ?? '-'}</span>` : `<span class="seq-tag">S${seqDe(l.os) ?? '-'}</span>`}<span class="seq-card-faz">${fzTxt(l)}</span><span class="seq-card-ha">${esc(fmtNum(valor(l), 2))} ha${g === 'concluida' && l.obst > 0.005 ? `<small>obst. ${esc(fmtNum(l.obst, 2))}</small>` : ''}</span></div>`).join('') || '<p class="seq-card-vazio">Nenhuma fazenda neste grupo.</p>'}</div>
+      <div class="seq-card-lista">${g === 'concluida' && esconderConcl(linhas) && ls.length ? `<p class="seq-card-vazio">${ls.length} concluída${ls.length > 1 ? 's' : ''} oculta${ls.length > 1 ? 's' : ''}. Desmarque <b>Só o que falta fazer</b> para ver.</p>` : ls.map((l) => `<div class="seq-card-it ${l.os.id === proxima?.os.id ? 'prox' : ''}">${l.os.id === proxima?.os.id ? `<span class="seq-tag-prox">Próxima · S${seqDe(l.os) ?? '-'}</span>` : `<span class="seq-tag">S${seqDe(l.os) ?? '-'}</span>`}<span class="seq-card-faz">${fzTxt(l)}</span><span class="seq-card-ha">${esc(fmtNum(valor(l), 2))} ha${g === 'concluida' && l.obst > 0.005 ? `<small>obst. ${esc(fmtNum(l.obst, 2))}</small>` : ''}</span></div>`).join('') || '<p class="seq-card-vazio">Nenhuma fazenda neste grupo.</p>'}</div>
       <footer><span>${rodRot}</span><b>${esc(fmtNum(rodVal, 2))} ha</b></footer></section>`;
   };
   const conc = linhas.filter((l) => l.grupo === 'concluida'), and = linhas.filter((l) => l.grupo === 'andamento'), seg = linhas.filter((l) => l.grupo === 'seguir');
   host.innerHTML = `
     <div class="seq-barra">
       <label class="f-campo"><span>Campanha</span><select data-k="campanha">${ds.campanhas.length > 1 ? `<option value="${TODAS}" ${ehTodas() ? 'selected' : ''}>Todas em andamento</option>` : ''}${opcoesCampanha(campanhaId) || '<option value="">Nenhuma campanha</option>'}</select></label>
+      <label class="seq-sofalta" title="Esconde as fazendas já concluídas"><input type="checkbox" data-k="sofalta" ${soFalta ? 'checked' : ''}> Só o que falta fazer</label>
       <label class="busca">${icone('busca', 16)}<input data-k="busca" type="search" placeholder="Pesquisar por fazenda ou FN…" value="${esc(busca)}"></label>
       <button class="btn btn-sec btn-peq" data-acao="copiar">${icone('relatorio', 15)} Copiar resumo</button>
       <button class="btn btn-sec btn-peq" data-acao="imagem">${icone('camadas', 15)} Salvar imagem</button>
@@ -223,7 +230,7 @@ function desenhar(host: HTMLElement) {
       ${cartao('seguir', 'A seguir', 'c-seg', 'A aplicar', seg.reduce((s, l) => s + l.plan, 0), (l) => l.plan)}
     </div>
     <section class="cartao seq-tabela" id="seq-tab"></section>
-    ${conc.length ? `<section class="cartao seq-fech"><h3 class="sec-tit">${icone('ok', 16)} Fechamento — aplicado × obstáculos (${conc.length} concluída${conc.length > 1 ? 's' : ''})</h3>
+    ${conc.length && !esconderConcl(linhas) ? `<section class="cartao seq-fech"><h3 class="sec-tit">${icone('ok', 16)} Fechamento — aplicado × obstáculos (${conc.length} concluída${conc.length > 1 ? 's' : ''})</h3>
       <div class="tabela-rolagem"><table class="tabela tabela-simples"><thead><tr><th>Seq.</th><th>Fazenda</th><th class="dir">Programado</th><th class="dir">Aplicado</th><th class="dir">Obstáculo</th><th class="dir">Aproveitamento</th></tr></thead><tbody>
       ${conc.map((l) => `<tr><td>S${seqDe(l.os) ?? '-'}</td><td>${fzTxt(l)}</td><td class="dir">${esc(fmtNum(l.plan, 2))}</td><td class="dir"><b>${esc(fmtNum(l.apl, 2))}</b></td><td class="dir">${l.obst > 0.005 ? esc(fmtNum(l.obst, 2)) : '—'}</td><td class="dir">${esc(fmtPct(l.pct, 1))}</td></tr>`).join('')}
       </tbody><tfoot>${(() => { const p = conc.reduce((s, l) => s + l.plan, 0), a2 = conc.reduce((s, l) => s + l.apl, 0), o2 = conc.reduce((s, l) => s + l.obst, 0); return `<tr><td></td><td>Total</td><td class="dir">${esc(fmtNum(p, 2))}</td><td class="dir"><b>${esc(fmtNum(a2, 2))}</b></td><td class="dir">${esc(fmtNum(o2, 2))}</td><td class="dir">${esc(fmtPct(percentualExecutado(a2, p), 1))}</td></tr>`; })()}</tfoot></table></div>
@@ -238,7 +245,9 @@ function desenharTabela(host: HTMLElement) {
   const linhas = linhasDaCampanha(campanhaId);
   const proximaId = (linhas.find((l) => l.grupo === 'andamento') ?? linhas.find((l) => l.grupo === 'seguir'))?.os.id;
   const t = busca.trim().toLowerCase();
-  const filtradas = t ? linhas.filter((l) => { const f = ds.fazendas.find((x) => x.id === l.os.fazendaId); return `${f?.codigo} ${f?.nome} ${l.os.numero} ${l.os.titulo ?? ''}`.toLowerCase().includes(t); }) : linhas;
+  const visiveis = esconderConcl(linhas) ? linhas.filter((l) => l.grupo !== 'concluida') : linhas;
+  const ocultas = linhas.length - visiveis.length;
+  const filtradas = t ? visiveis.filter((l) => { const f = ds.fazendas.find((x) => x.id === l.os.fazendaId); return `${f?.codigo} ${f?.nome} ${l.os.numero} ${l.os.titulo ?? ''}`.toLowerCase().includes(t); }) : visiveis;
   const etapa = (ativo: boolean, tipo: 'ok' | 'and') => (ativo ? `<span class="seq-pill ${tipo === 'ok' ? 'p-ok' : 'p-and'}">${tipo === 'ok' ? 'OK' : 'EM AND.'}</span>` : '<span class="seq-pill p-nao">—</span>');
   const linhaHTML = (l: LinhaSeq) => {
     const f = ds.fazendas.find((x) => x.id === l.os.fazendaId);
@@ -267,8 +276,8 @@ function desenharTabela(host: HTMLElement) {
   el.innerHTML = filtradas.length ? `<div class="tabela-rolagem"><table class="tabela tabela-simples seq-t">
     <thead><tr><th>Sequência</th><th class="m-oculta">FN</th><th>Fazenda</th><th class="dir">Área (ha)</th><th class="dir">Aplicado (ha)</th><th class="dir">Saldo (ha)</th><th class="centro m-oculta">Programada</th><th class="centro m-oculta">Em and.</th><th class="centro m-oculta">Concluída</th><th>Progresso</th><th class="seq-acoes">Ação</th></tr></thead>
     <tbody>${filtradas.map(linhaHTML).join('')}</tbody>
-    <tfoot><tr><td></td><td class="m-oculta"></td><td>Total (${filtradas.length})</td><td class="dir">${esc(fmtNum(tot.plan, 2))}</td><td class="dir">${esc(fmtNum(tot.apl, 2))}</td><td class="dir">${esc(fmtNum(tot.plan - tot.apl, 2))}<small class="bloco seq-obst">${tot.obst > 0.005 ? `obst. ${esc(fmtNum(tot.obst, 2))} · falta ${esc(fmtNum(tot.falta, 2))}` : ''}</small></td><td class="m-oculta" colspan="3"></td><td colspan="2"></td></tr></tfoot>
-  </table></div>` : `<p class="vazio-txt">${t ? 'Nenhuma OS para a busca.' : 'Campanha sem OS. Importe a sequência ou crie uma OS.'}</p>`;
+    <tfoot><tr><td></td><td class="m-oculta"></td><td>Total (${filtradas.length})${ocultas ? `<small class="bloco seq-ocultas">${ocultas} concluída${ocultas > 1 ? 's' : ''} oculta${ocultas > 1 ? 's' : ''}</small>` : ''}</td><td class="dir">${esc(fmtNum(tot.plan, 2))}</td><td class="dir">${esc(fmtNum(tot.apl, 2))}</td><td class="dir">${esc(fmtNum(tot.plan - tot.apl, 2))}<small class="bloco seq-obst">${tot.obst > 0.005 ? `obst. ${esc(fmtNum(tot.obst, 2))} · falta ${esc(fmtNum(tot.falta, 2))}` : ''}</small></td><td class="m-oculta" colspan="3"></td><td colspan="2"></td></tr></tfoot>
+  </table></div>` : `<p class="vazio-txt">${t ? 'Nenhuma OS para a busca.' : ocultas ? `Nada a fazer: as ${ocultas} OS estão concluídas. Desmarque <b>Só o que falta fazer</b> para ver.` : 'Campanha sem OS. Importe a sequência ou crie uma OS.'}</p>`;
 }
 
 /** A Sequência como relatório exportável (mesmos números da tela). */
@@ -407,7 +416,7 @@ export function abrirImportarSequencia(campanhaPadrao = '') {
       if (erro) { toast(erro, 'erro'); return; }
       const r = res! as ReturnType<typeof importarSequencia>;
       if (!ehTodas()) campanhaId = r.campanhaId; // em "Todas" continua em Todas (a OS nova aparece no fim)
-      try { localStorage.setItem(CHAVE, JSON.stringify({ campanhaId })); } catch { /* opcional */ }
+      salvarPref();
       m.fechar();
       toast(`Sequência importada: ${r.acoes.length} OS · ${fmtHa(r.total, 2)}.`, 'ok');
       if (location.hash !== '#/relatorios/sequencia') location.hash = '#/relatorios/sequencia'; else redesenhar();
@@ -535,7 +544,7 @@ export function abrirImportarPdf(campanhaPadrao = '') {
       if (erro) { toast(erro, 'erro'); return; }
       const r = res! as ReturnType<typeof importarOSPdf>;
       if (!ehTodas()) campanhaId = r.campanhaId; // em "Todas" continua em Todas (a OS nova aparece no fim)
-      try { localStorage.setItem(CHAVE, JSON.stringify({ campanhaId })); } catch { /* opcional */ }
+      salvarPref();
       m.fechar();
       toast(`PDF importado: ${r.acoes.length} OS · ${fmtHa(r.total, 2)}.`, 'ok');
       if (location.hash !== '#/relatorios/sequencia') location.hash = '#/relatorios/sequencia'; else redesenhar();

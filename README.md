@@ -157,6 +157,12 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Sequência: "Só o que falta fazer" (v1.7.26)
+
+- Caixa "Só o que falta fazer", marcada por padrão: esconde as OS concluídas da tabela, da lista do cartão Concluídas e do quadro de fechamento. A escolha fica guardada no aparelho.
+- O topo (programado, aplicado, obstáculos, falta aplicar, executado) continua com a campanha inteira; a tabela indica quantas concluídas estão ocultas.
+- A imagem segue a tela; CSV, Excel, PDF e "Copiar resumo" continuam com a sequência completa.
+
 ## Tempo de cada drone e horas em voo opcionais no Fechamento (v1.7.25)
 
 - Diário de aplicações: quadro "Para onde foi o tempo de cada drone" — barra por drone com no ar, no chão (abastecer, trocar bateria, manobrar) e paradas lançadas; tabela com ha/h em voo (e % da meta), ha/h efetivo, ha/h da jornada, voos, ha por voo, chão por voo e calda real (L/ha).

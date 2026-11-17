@@ -41,6 +41,12 @@ def rodar(vp, rot, mobile=False):
         msg = pg.locator('.modal').inner_text()
         ok(f'[{rot}] concluir com saldo abre o lançamento: programado 32,70, voos 32,17, desconto 0,53 no talhão', '32,70' in msg and '32,17' in msg and pg.locator('.modal [data-l="t-dsc"]').inner_text() == '0,53' and pg.is_checked('.modal [data-l="concluir"]'))
         pg.click('.modal [data-l="salvar"]'); pg.wait_for_timeout(300)
+        # padrão: só o que falta fazer — a concluída some da tabela, do cartão e do fechamento
+        tab = pg.locator('#seq-tab').inner_text()
+        ok(f'[{rot}] "Só o que falta fazer" vem marcado e esconde a concluída', pg.is_checked('[data-k="sofalta"]') and pg.locator('#seq-tab tr[data-os="o1"]').count() == 0 and pg.locator('#seq-tab tr[data-os="o2"]').count() == 1 and '1 concluída oculta' in tab and pg.locator('.seq-fech').count() == 0 and '1 concluída oculta' in pg.locator('.seq-card.c-conc').inner_text())
+        ok(f'[{rot}] topo continua com os totais da campanha inteira', all(x in pg.locator('.seq-nums').inner_text() for x in ['48,71', '32,17', '0,53', '16,01']))
+        pg.uncheck('[data-k="sofalta"]'); pg.wait_for_timeout(300)
+        ok(f'[{rot}] desmarcar mostra a concluída e a escolha fica guardada', pg.locator('#seq-tab tr[data-os="o1"]').count() == 1 and pg.evaluate("JSON.parse(localStorage.getItem('dap-proto-v1:sequencia')).soFalta") is False)
         linha = pg.locator('#seq-tab tr[data-os="o1"]')
         t = linha.inner_text()
         ok(f'[{rot}] concluída mantém saldo 0,53 marcado como obstáculo e barra em 98%', '0,53' in t and 'obstáculo' in t and '98%' in t and 'Concluída' in t)
