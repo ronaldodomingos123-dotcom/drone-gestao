@@ -1488,3 +1488,23 @@ test('motivo da parada pelo texto: aguardando equipe e carregamento de insumo', 
   assert.equal(motivoDoTexto('Aguardando liberação da área'), 'Aguardando liberação');
   assert.equal(motivoDoTexto('problema com operador'), 'Problemas de equipe');
 });
+
+test('diário: cada produto diz em que campanha entrou e em quanta área', () => {
+  const ds = gerarDemo();
+  const f = { turnoId: '', liderId: '', campanhaId: '' };
+  const d = datasComOperacao(ds, f)[10];
+  const ops = ds.operacoes.filter((o) => o.data === d);
+  assert.ok(ops.length >= 2);
+  // segunda campanha no mesmo dia: uma operação passa para ela, com um produto só dela
+  ds.campanhas.push({ ...ds.campanhas[0], id: 'c-ins', nome: 'Inseticida' });
+  const opIns = ops[0];
+  opIns.campanhaId = 'c-ins';
+  const prodSo = { ...opIns.calda.produtos[0], produtoId: 'p-so-ins' };
+  opIns.calda.produtos.push(prodSo);
+  const r = resumoDia(ds, criarIndices(ds), d, f);
+  const so = r.produtos.find((p) => p.produtoId === 'p-so-ins')!;
+  assert.deepEqual(so.campanhaIds, ['c-ins']);
+  assert.ok(Math.abs(so.area - areaOperacao(opIns)) < 1e-6, 'área só da operação que usou');
+  const comum = r.produtos.find((p) => p.produtoId === opIns.calda.produtos[0].produtoId)!;
+  assert.ok(comum.campanhaIds.includes('c-ins') && comum.campanhaIds.length === 2, 'produto das duas campanhas');
+});

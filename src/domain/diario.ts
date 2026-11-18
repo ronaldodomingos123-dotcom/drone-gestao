@@ -41,7 +41,7 @@ export interface ResumoDia {
   minParadoSoma: number;
   minTotalSoma: number;
   fazendas: { fazendaId: string; area: number; talhoes: number; os: string[] }[];
-  produtos: { produtoId: string; dose: number; unidade: UnidadeDose; quantidade: { valor: number; unidade: 'L' | 'kg' } | null; lotes: string[] }[];
+  produtos: { produtoId: string; dose: number; unidade: UnidadeDose; quantidade: { valor: number; unidade: 'L' | 'kg' } | null; lotes: string[]; /** Campanhas em que o produto entrou no dia e a área onde foi usado. */ campanhaIds: string[]; area: number }[];
   porAeronave: { aeronaveId: string; area: number; minEfetivo: number; minTotal: number; ops: number }[];
   climaInicial: LeituraClima | null;
   climaFinal: LeituraClima | null;
@@ -154,11 +154,12 @@ export function resumoDia(ds: Dataset, idx: Indices, data: string, f: FiltroDia)
   const fazendas = [...mf.values()].map((r) => ({ fazendaId: r.fazendaId, area: r.area, talhoes: r.talhoes.size, os: [...r.os] })).sort((a, b) => b.area - a.area);
 
   // Produtos: dose ponderada pela área (se doses diferirem entre operações) e quantidade total do dia
-  const mp = new Map<string, { produtoId: string; somaDoseArea: number; area: number; unidade: UnidadeDose; lotes: Set<string> }>();
+  const mp = new Map<string, { produtoId: string; somaDoseArea: number; area: number; unidade: UnidadeDose; lotes: Set<string>; camps: Set<string> }>();
   for (const op of ops) {
     const a = areaOperacao(op);
     for (const p of op.calda.produtos) {
-      const r = mp.get(p.produtoId) ?? { produtoId: p.produtoId, somaDoseArea: 0, area: 0, unidade: p.unidade, lotes: new Set() };
+      const r = mp.get(p.produtoId) ?? { produtoId: p.produtoId, somaDoseArea: 0, area: 0, unidade: p.unidade, lotes: new Set(), camps: new Set() };
+      r.camps.add(op.campanhaId);
       r.somaDoseArea += (p.doseReal ?? p.dosePlanejada) * a; r.area += a;
       if (p.lote) r.lotes.add(p.lote);
       mp.set(p.produtoId, r);
@@ -166,7 +167,7 @@ export function resumoDia(ds: Dataset, idx: Indices, data: string, f: FiltroDia)
   }
   const produtos = [...mp.values()].map((r) => {
     const dose = r.area > 0 ? r.somaDoseArea / r.area : 0;
-    return { produtoId: r.produtoId, dose, unidade: r.unidade, quantidade: quantidadeTotal(dose, r.unidade, r.area), lotes: [...r.lotes] };
+    return { produtoId: r.produtoId, dose, unidade: r.unidade, quantidade: quantidadeTotal(dose, r.unidade, r.area), lotes: [...r.lotes], campanhaIds: [...r.camps], area: r.area };
   });
 
   const ma = new Map<string, { aeronaveId: string; area: number; minEfetivo: number; minTotal: number; ops: number }>();

@@ -95,8 +95,8 @@ function relDiario(): Relatorio {
       ] },
       { titulo: 'Fazendas aplicadas', colunas: [{ titulo: 'Fazenda', tipo: 'texto' }, { titulo: 'OS', tipo: 'texto' }, { titulo: 'Talhões', tipo: 'int', total: 'soma' }, { titulo: 'Área (ha)', tipo: 'ha', total: 'soma' }],
         linhas: r.fazendas.map((f) => [nome.fazenda(f.fazendaId), f.os.join(', '), f.talhoes, f.area]), totais: ['Total', null, r.fazendas.reduce((s, f) => s + f.talhoes, 0), r.fazendas.reduce((s, f) => s + f.area, 0)] },
-      { titulo: 'Produtos', colunas: [{ titulo: 'Produto', tipo: 'texto' }, { titulo: 'Dose', tipo: 'dose' }, { titulo: 'Unidade', tipo: 'texto' }, { titulo: 'Quantidade total', tipo: 'num', casas: 2 }, { titulo: 'Un.', tipo: 'texto' }, { titulo: 'Lotes', tipo: 'texto' }],
-        linhas: r.produtos.map((p) => [nome.produto(p.produtoId), p.dose, p.unidade, p.quantidade?.valor ?? null, p.quantidade?.unidade ?? '', p.lotes.join(', ')]) },
+      { titulo: 'Produtos', colunas: [{ titulo: 'Produto', tipo: 'texto' }, { titulo: 'Campanha', tipo: 'texto' }, { titulo: 'Área (ha)', tipo: 'ha' }, { titulo: 'Dose', tipo: 'dose' }, { titulo: 'Unidade', tipo: 'texto' }, { titulo: 'Quantidade total', tipo: 'num', casas: 2 }, { titulo: 'Un.', tipo: 'texto' }, { titulo: 'Lotes', tipo: 'texto' }],
+        linhas: r.produtos.map((p) => [nome.produto(p.produtoId), p.campanhaIds.map((c) => estado.ds.campanhas.find((x) => x.id === c)?.nome ?? '—').join(' / '), p.area, p.dose, p.unidade, p.quantidade?.valor ?? null, p.quantidade?.unidade ?? '', p.lotes.join(', ')]) },
       { titulo: 'Por drone', colunas: [{ titulo: 'Drone', tipo: 'texto' }, { titulo: 'Operações', tipo: 'int', total: 'soma' }, { titulo: 'Área (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Tempo efetivo', tipo: 'min', total: 'soma' }, { titulo: 'Tempo total', tipo: 'min', total: 'soma' }, { titulo: 'ha/h efetivo', tipo: 'hah' }],
         linhas: r.porAeronave.map((a) => [nome.aeronave(a.aeronaveId), a.ops, a.area, a.minEfetivo, a.minTotal, produtividadeEfetiva(a.area, a.minEfetivo)]) },
       { titulo: 'Linha do tempo', colunas: [{ titulo: 'Hora', tipo: 'texto' }, { titulo: 'Drone', tipo: 'texto' }, { titulo: 'Evento', tipo: 'texto' }], linhas: r.eventos.map((ev) => [ev.hora, ev.aeronave, ev.texto]) },
@@ -169,7 +169,7 @@ function desenhar(host: HTMLElement) {
 
     <section class="cartao">
       <header class="cartao-cab"><div><h2 class="dia-tit">${icone('produto', 16)} Produtos aplicados</h2><p>Dose utilizada (média ponderada pela área quando houver mais de uma operação) e quantidade total do dia</p></div></header>
-      <div class="dia-produtos">${r.produtos.map((p) => `<div class="dia-prod"><b>${esc(nome.produto(p.produtoId))}</b><span>${esc(fmtNum(p.dose, p.unidade === 'mL/ha' || p.unidade === 'g/ha' ? 0 : 3))} ${esc(p.unidade)}</span><small>Total: ${p.quantidade ? `${esc(fmtNum(p.quantidade.valor, 2))} ${p.quantidade.unidade}` : '—'}${p.lotes.length ? ` · lote ${esc(p.lotes.join(', '))}` : ''}</small></div>`).join('') || '<p class="vazio-txt">Sem produtos no dia.</p>'}</div>
+      <div class="dia-produtos">${r.produtos.map((p) => `<div class="dia-prod"><b>${esc(nome.produto(p.produtoId))}</b><em class="dia-prod-camp">${esc(p.campanhaIds.map((c) => ds.campanhas.find((x) => x.id === c)?.nome ?? '—').join(' / '))} · em ${esc(fmtNum(p.area, 2))} ha</em><span>${esc(fmtNum(p.dose, p.unidade === 'mL/ha' || p.unidade === 'g/ha' ? 0 : 3))} ${esc(p.unidade)}</span><small>Total: ${p.quantidade ? `${esc(fmtNum(p.quantidade.valor, 2))} ${p.quantidade.unidade}` : '—'}${p.lotes.length ? ` · lote ${esc(p.lotes.join(', '))}` : ''}</small></div>`).join('') || '<p class="vazio-txt">Sem produtos no dia.</p>'}</div>
     </section>
 
     <div class="dia-dupla">

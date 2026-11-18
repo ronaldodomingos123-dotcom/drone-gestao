@@ -157,6 +157,12 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Diário: campanha e área de cada produto (v1.7.28)
+
+- Em "Produtos aplicados", cada produto mostra em letra pequena a campanha em que entrou e a área onde foi usado (ex.: "Inseticida 26/27 · em 185,35 ha"). Produto usado em duas campanhas no dia: "Inseticida 26/27 / Fungicida · em …".
+- A dose já era a média só das operações que usaram o produto; agora a área fica visível para não parecer que foi usado no dia inteiro.
+- Excel/PDF do diário: colunas "Campanha" e "Área (ha)" na tabela de produtos.
+
 ## Paradas: "Aguardando equipe" e "Carregamento de insumo" (v1.7.27)
 
 - Dois motivos novos em todas as listas de parada (Fechamento do dia, Campo, Diário, Nova aplicação).
