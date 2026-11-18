@@ -420,7 +420,7 @@ function blocoTempoDrones(ts: TempoDrone[], meta: number): string {
     const hahVoo = t.vooMin ? (t.areaVoo ?? t.area) / (t.vooMin / 60) : null;
     const pctMeta = hahVoo !== null && meta ? hahVoo / meta : null;
     return `<tr><td class="tdr-dr"><b>${esc(nome.aeronave(t.aeronaveId))}</b></td>
-      <td class="dir">${hahVoo === null ? '—' : `<b class="${pctMeta !== null && pctMeta < 0.95 ? 'tdr-baixo' : 'tdr-ok'}">${esc(fmtNum(hahVoo, 2))}</b><small class="bloco muted">${pctMeta !== null ? `${esc(fmtPct(pctMeta * 100, 0))} da meta` : ''}</small>`}</td>
+      <td class="dir">${hahVoo === null ? '—' : `<b class="${pctMeta !== null && pctMeta < 0.995 ? 'tdr-baixo' : 'tdr-ok'}">${esc(fmtNum(hahVoo, 2))}</b><small class="bloco ${pctMeta !== null && pctMeta < 0.995 ? 'tdr-baixo' : 'muted'}">${pctMeta !== null ? `${esc(fmtPct(pctMeta * 100, 0))} da meta` : ''}</small>`}</td>
       <td class="dir">${esc(fmtNum(t.efetivoMin ? t.area / (t.efetivoMin / 60) : null, 2))}</td>
       <td class="dir">${esc(fmtNum(t.jornadaMin ? t.area / (t.jornadaMin / 60) : null, 2))}</td>
       <td class="dir">${t.voos ?? '—'}</td>

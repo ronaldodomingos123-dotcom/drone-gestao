@@ -94,6 +94,8 @@ def rodar(vp, rot, mobile=False):
         pg.wait_for_selector('.tdr')
         t = pg.locator('.tdr').inner_text().replace('\n', ' ')
         ok(f'[{rot}] Diário mostra para onde foi o tempo: T70 D no ar 2h30 · 25 ÷ 2,5 = 10,00 ha/h em voo · 2,50 ha por voo', 'No ar 2h30min' in t.replace(' ', '').replace('Noar', 'No ar ') or '2h30min' in t.replace(' ', '') and '10,00' in t and '2,50' in t)
+        cor = pg.locator('.tdr b.tdr-baixo').first.evaluate("e => getComputedStyle(e).color") if pg.locator('.tdr b.tdr-baixo').count() else None
+        ok(f'[{rot}] ha/h em voo abaixo da meta (10,00 < 23) em vermelho ({cor})', cor == 'rgb(192, 38, 27)' and pg.locator('.tdr b.tdr-ok').count() == 0)
         ok(f'[{rot}] Diário abre no dia 14/10 com 48,18 ha', '48,1' in pg.locator('main').inner_text() and '14/10/2026' in pg.locator('main').inner_text())
         # sequência: Jacinto concluída com obstáculo 0,53
         ir('relatorios/sequencia'); pg.wait_for_selector('#seq-tab tbody tr')
