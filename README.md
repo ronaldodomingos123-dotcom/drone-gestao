@@ -157,6 +157,12 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Paradas: "Aguardando equipe" e "Carregamento de insumo" (v1.7.27)
+
+- Dois motivos novos em todas as listas de parada (Fechamento do dia, Campo, Diário, Nova aplicação).
+- Na leitura do texto da linha do tempo: "carregamento/carregando…" (sem "bateria") vira Carregamento de insumo; "aguardando (a) equipe" vira Aguardando equipe.
+- Nomes curtos nos gráficos: "Ag. equipe", "Carregamento" e "Liberação".
+
 ## Sequência: "Só o que falta fazer" e data em que a OS saiu (v1.7.26)
 
 - Caixa "Só o que falta fazer", marcada por padrão: esconde as OS concluídas da tabela, da lista do cartão Concluídas e do quadro de fechamento. A escolha fica guardada no aparelho.

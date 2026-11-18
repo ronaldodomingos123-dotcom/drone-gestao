@@ -69,6 +69,8 @@ export function motivoDoTexto(t: string): MotivoParada {
   if (/troca de turno/.test(x)) return 'Troca de turno';
   if (/almoco|refeicao|janta|intervalo/.test(x)) return 'Refeição/intervalo';
   if (/mudanca de area|desloc|transporte|mudanca/.test(x)) return 'Deslocamento';
+  if (/carreg/.test(x) && !/bateria/.test(x)) return 'Carregamento de insumo';
+  if (/aguard\w* (a )?equipe/.test(x)) return 'Aguardando equipe';
   if (/abastec|bateria|recarga|carga/.test(x)) return 'Abastecimento/reabastecimento';
   if (/manut/.test(x)) return 'Manutenção';
   if (/quebr|falha|defeito|pane|gerador/.test(x)) return 'Falha de equipamento';

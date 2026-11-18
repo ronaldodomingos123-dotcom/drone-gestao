@@ -234,8 +234,10 @@ export type MotivoParada =
   | 'Orvalho'
   | 'Manutenção'
   | 'Abastecimento/reabastecimento'
+  | 'Carregamento de insumo'
   | 'Falta de insumos'
   | 'Problemas de equipe'
+  | 'Aguardando equipe'
   | 'Falha de equipamento'
   | 'Deslocamento'
   | 'Fim de tarefa'
@@ -251,8 +253,10 @@ export const MOTIVOS_PARADA: MotivoParada[] = [
   'Orvalho',
   'Manutenção',
   'Abastecimento/reabastecimento',
+  'Carregamento de insumo',
   'Falta de insumos',
   'Problemas de equipe',
+  'Aguardando equipe',
   'Falha de equipamento',
   'Deslocamento',
   'Fim de tarefa',

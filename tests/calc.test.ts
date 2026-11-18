@@ -1477,3 +1477,14 @@ test('paradas no relógio: "Problemas de equipe" 13:20–18:30 com os dois drone
   assert.equal(minutosParadasRelogio([{ inicio: '2026-10-26T23:30', fim: '2026-10-27T00:30' }, { inicio: '2026-10-27T00:00', fim: '2026-10-27T01:00' }]), 90, 'atravessa a meia-noite e sobrepõe em parte');
   assert.equal(minutosParadasRelogio([{ inicio: '2026-10-26T10:00', fim: null }]), 0, 'parada sem término não entra');
 });
+
+test('motivo da parada pelo texto: aguardando equipe e carregamento de insumo', async () => {
+  const { motivoDoTexto } = await import('../src/domain/acomp');
+  assert.equal(motivoDoTexto('Aguardando equipe'), 'Aguardando equipe');
+  assert.equal(motivoDoTexto('aguardando a equipe chegar'), 'Aguardando equipe');
+  assert.equal(motivoDoTexto('Carregamento de insumo'), 'Carregamento de insumo');
+  assert.equal(motivoDoTexto('carregando insumo no caminhão'), 'Carregamento de insumo');
+  assert.equal(motivoDoTexto('carregando bateria'), 'Abastecimento/reabastecimento');
+  assert.equal(motivoDoTexto('Aguardando liberação da área'), 'Aguardando liberação');
+  assert.equal(motivoDoTexto('problema com operador'), 'Problemas de equipe');
+});

@@ -23,7 +23,7 @@ function fracaoTurnos(n: number, total: number): string {
   const f: Record<string, string> = { '1/2': '½', '1/3': '⅓', '2/3': '⅔', '1/4': '¼', '3/4': '¾' };
   return f[`${n}/${total}`] ?? `${n} turno${n > 1 ? 's' : ''}`;
 }
-const motivoCurto = (m = '') => ({ 'Vento acima do limite': 'Vento', 'Umidade abaixo do limite': 'Umidade', 'Falha de equipamento': 'Equip.', 'Falta de insumos': 'Insumos', 'Problemas de equipe': 'Equipe' } as Record<string, string>)[m] ?? m.split(' ')[0];
+const motivoCurto = (m = '') => ({ 'Vento acima do limite': 'Vento', 'Umidade abaixo do limite': 'Umidade', 'Falha de equipamento': 'Equip.', 'Falta de insumos': 'Insumos', 'Problemas de equipe': 'Equipe', 'Aguardando equipe': 'Ag. equipe', 'Aguardando liberação': 'Liberação', 'Carregamento de insumo': 'Carregamento' } as Record<string, string>)[m] ?? m.split(' ')[0];
 
 function kpi(o: { rotulo: string; valor: string; unidade?: string; sub?: string; icone: string; formula: string; tom?: 'ok' | 'atencao' | 'critico' | '' }) {
   return `<div class="kpi ${o.tom ? `kpi-${o.tom}` : ''}">
