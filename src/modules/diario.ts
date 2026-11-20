@@ -172,7 +172,7 @@ function desenhar(host: HTMLElement) {
       <div class="dia-produtos">${r.produtos.map((p) => `<div class="dia-prod"><b>${esc(nome.produto(p.produtoId))}</b><em class="dia-prod-camp">${esc(p.campanhaIds.map((c) => ds.campanhas.find((x) => x.id === c)?.nome ?? '—').join(' / '))} · em ${esc(fmtNum(p.area, 2))} ha</em><span>${esc(fmtNum(p.dose, p.unidade === 'mL/ha' || p.unidade === 'g/ha' ? 0 : 3))} ${esc(p.unidade)}</span><small>Total: ${p.quantidade ? `${esc(fmtNum(p.quantidade.valor, 2))} ${p.quantidade.unidade}` : '—'}${p.lotes.length ? ` · lote ${esc(p.lotes.join(', '))}` : ''}</small></div>`).join('') || '<p class="vazio-txt">Sem produtos no dia.</p>'}</div>
     </section>
 
-    <div class="dia-dupla">
+    <div class="dia-dupla dia-pilha">
       <section class="cartao">
         <header class="cartao-cab"><div><h2 class="dia-tit">${icone('drone', 16)} Resumo operacional</h2></div></header>
         <div class="dia-drones">
@@ -183,8 +183,8 @@ function desenhar(host: HTMLElement) {
         <div class="dia-tempos"><span title="Tempo em que pelo menos um drone estava aplicando; drones ao mesmo tempo contam uma vez">Efetivo da operação <b>${esc(formatarDuracao(r.minEfetivoOperacao))}</b></span><span title="Paradas registradas no relógio: drones parados ao mesmo tempo contam uma vez">Parado <b>${esc(formatarDuracao(r.minParadoOperacao))}</b></span>${r.porAeronave.length > 1 ? `<span class="muted">por drone (somado): efetivo ${esc(formatarDuracao(r.minEfetivoSoma))} · parado ${esc(formatarDuracao(r.minParadoSoma))}</span>` : ''}${r.impedidas ? `<span class="txt-critico">${r.impedidas} operação(ões) impedida(s) por clima</span>` : ''}</div>
       </section>
       <section class="cartao" data-dia-progresso>
-        <header class="cartao-cab"><div><h2 class="dia-tit">${icone('meta', 16)} Progresso ${progs.length > 1 ? 'das campanhas' : 'da campanha'}</h2><p>${progs.length > 1 ? 'Cada campanha separada (produtos diferentes não se somam) · some quando a campanha termina' : esc(progs.map((x) => nome.campanha(x.campanhaId)).join(' · '))}</p></div></header>
-        ${progs.map((x) => blocoProgresso(x, progs.length > 1)).join('') || '<p class="vazio-txt">Sem campanha em andamento neste dia.</p>'}
+        <header class="cartao-cab"><div><h2 class="dia-tit">${icone('meta', 16)} Progresso ${progs.length > 1 ? 'das campanhas' : 'da campanha'}</h2><p>${progs.length > 1 ? 'Uma linha por campanha · produtos diferentes não se somam · some quando a campanha termina' : esc(progs.map((x) => nome.campanha(x.campanhaId)).join(' · '))}</p></div></header>
+        ${progs.length ? blocoProgresso(progs) : '<p class="vazio-txt">Sem campanha em andamento neste dia.</p>'}
       </section>
     </div>
 
@@ -379,29 +379,43 @@ function excluirTurnoTela(host: HTMLElement) {
   });
 }
 
-/** Bloco de progresso de UMA campanha até o dia (anel, concluído/restante/programado, dias e previsão no ritmo dela). */
-function blocoProgresso(x: import('../domain/diario').ProgressoCampanhaDia, varias: boolean): string {
-  const pct = safeDiv(x.acumuladoAteDia * 100, x.planejado);
-  const restante = x.planejado - x.acumuladoAteDia - x.obstaculos;
-  const inicio = x.areaPorDia[0]?.data ?? dia;
-  const mapa = new Map(x.areaPorDia.map((d) => [d.data, d.area]));
-  const prev = preverTermino(restante, intervaloDatas(inicio, dia).map((d) => mapa.get(d) ?? 0), dia);
-  const ang = Math.max(0, Math.min(100, pct ?? 0));
-  const tam = varias ? 96 : 128, rr = varias ? 38 : 52, C = 2 * Math.PI * rr;
-  const prevTxt = prev.concluida ? 'Concluída' : !x.acumuladoAteDia ? 'sem aplicação ainda' : prev.data ? fmtData(prev.data) : '—';
-  return `<div class="dia-camp-bloco ${varias ? 'varias' : ''}" data-camp="${esc(x.campanhaId)}">
-    ${varias ? `<div class="dia-camp-tit"><b>${esc(nome.campanha(x.campanhaId))}</b>${x.aplicouNoDia ? `<span class="selo selo-ok">aplicou ${esc(fmtNum(x.areaDia, 2))} ha no dia</span>` : '<span class="selo selo-neutro">sem aplicação no dia</span>'}</div>` : ''}
-    <div class="dia-progresso">
-      <svg viewBox="0 0 ${tam} ${tam}" width="${tam}" height="${tam}" role="img" aria-label="Percentual concluído"><circle cx="${tam / 2}" cy="${tam / 2}" r="${rr}" fill="none" stroke="var(--linha)" stroke-width="${varias ? 10 : 12}"/>${ang > 0 ? `<circle cx="${tam / 2}" cy="${tam / 2}" r="${rr}" fill="none" stroke="var(--verde-500)" stroke-width="${varias ? 10 : 12}" stroke-linecap="round" stroke-dasharray="${(C * ang) / 100} ${C}" transform="rotate(-90 ${tam / 2} ${tam / 2})"/>` : ''}<text x="${tam / 2}" y="${tam / 2 + (varias ? 4 : 2)}" text-anchor="middle" class="r-centro" style="font-size:${varias ? 18 : 22}px">${esc(fmtNum(pct, 0))}%</text>${varias ? '' : `<text x="64" y="84" text-anchor="middle" class="r-sub">concluído</text>`}</svg>
-      <div class="dia-prog-txt">
-        <div><span class="dia-rot">Concluído</span><b>${esc(fmtHa(x.acumuladoAteDia, 1))}</b></div>
-        <div><span class="dia-rot">Restante</span><b>${esc(fmtHa(Math.max(0, restante), 1))}</b></div>
-        <div><span class="dia-rot">Total programado</span><b>${esc(fmtHa(x.planejado, 1))}</b></div>
-      </div>
-    </div>
-    <div class="dia-total"><span>Dias de operação</span><b>${x.diasOperacao}</b></div>
-    <div class="dia-total prev"><span>Previsão de término (ritmo real até este dia)</span><b>${esc(prevTxt)}</b></div>
-  </div>`;
+/** Progresso das campanhas até o dia: uma linha por campanha (barra, feito, falta, programado, dias e término
+ *  no ritmo real). Campanhas sem aplicação no dia ficam recolhidas numa linha, quando outra aplicou. */
+function blocoProgresso(progs: import('../domain/diario').ProgressoCampanhaDia[]): string {
+  const camps = estado.ds.campanhas;
+  const nomeRep = (id: string) => { const c = camps.find((x) => x.id === id); return !!c && camps.filter((x) => x.nome.trim().toLowerCase() === c.nome.trim().toLowerCase()).length > 1; };
+  const desde = (id: string) => { const ini = camps.find((x) => x.id === id)?.inicio; return ini ? `OS de ${ini.slice(8, 10)}/${ini.slice(5, 7)}` : ''; };
+  const calc = (x: import('../domain/diario').ProgressoCampanhaDia) => {
+    const pct = safeDiv(x.acumuladoAteDia * 100, x.planejado);
+    const restante = Math.max(0, x.planejado - x.acumuladoAteDia - x.obstaculos);
+    const mapa = new Map(x.areaPorDia.map((d) => [d.data, d.area]));
+    const prev = preverTermino(restante, intervaloDatas(x.areaPorDia[0]?.data ?? dia, dia).map((d) => mapa.get(d) ?? 0), dia);
+    const termino = prev.concluida ? 'Concluída' : !x.acumuladoAteDia ? 'sem aplicação ainda' : prev.data ? fmtData(prev.data) : '—';
+    const rep = nomeRep(x.campanhaId) ? desde(x.campanhaId) : '';
+    return { pct, restante, termino, rep };
+  };
+  const linha = (x: import('../domain/diario').ProgressoCampanhaDia) => {
+    const c = calc(x);
+    const larg = Math.max(0, Math.min(100, c.pct ?? 0));
+    const sub = [c.rep, x.aplicouNoDia ? `aplicou ${fmtNum(x.areaDia, 2)} ha no dia` : 'sem aplicação no dia'].filter(Boolean).join(' · ');
+    return `<div class="pc-lin" data-camp="${esc(x.campanhaId)}">
+      <div class="pc-nome"><b>${esc(nome.campanha(x.campanhaId))}</b><small class="${x.aplicouNoDia ? 'pc-aplicou' : ''}">${esc(sub)}</small></div>
+      <div class="pc-conc"><span class="pc-barra"><i style="width:${larg}%"></i></span><b>${esc(fmtNum(c.pct, 0))}%</b></div>
+      <span class="pc-num" data-rot="Feito">${esc(fmtHa(x.acumuladoAteDia, 1))}</span>
+      <span class="pc-num" data-rot="Falta">${esc(fmtHa(c.restante, 1))}</span>
+      <span class="pc-num" data-rot="Programado">${esc(fmtHa(x.planejado, 1))}</span>
+      <span class="pc-num" data-rot="Dias">${x.diasOperacao}</span>
+      <span class="pc-num pc-term" data-rot="Término">${esc(c.termino)}</span>
+    </div>`;
+  };
+  const cab = `<div class="pc-lin pc-cab"><span>Campanha</span><span>Concluído</span><span class="pc-num">Feito</span><span class="pc-num">Falta</span><span class="pc-num">Programado</span><span class="pc-num">Dias</span><span class="pc-num" title="Previsão no ritmo real até este dia">Término</span></div>`;
+  const comDia = progs.filter((x) => x.aplicouNoDia);
+  const principais = comDia.length && comDia.length < progs.length ? comDia : progs;
+  const outras = principais === progs ? [] : progs.filter((x) => !x.aplicouNoDia);
+  const resumoOutras = outras.map((x) => { const c = calc(x); return `${nome.campanha(x.campanhaId)}${c.rep ? ` (${c.rep})` : ''} · ${fmtNum(c.pct, 0)}% · falta ${fmtHa(c.restante, 1)} · término ${c.termino}`; }).join(' | ');
+  return `<div class="pc-tab">${cab}${principais.map(linha).join('')}</div>
+    ${outras.length ? `<details class="pc-outras"><summary><b>+${outras.length} campanha${outras.length > 1 ? 's' : ''} sem aplicação no dia</b> · ${esc(resumoOutras)}</summary><div class="pc-tab">${outras.map(linha).join('')}</div></details>` : ''}
+    <p class="pc-nota">Término = previsão no ritmo real da campanha até este dia.</p>`;
 }
 
 // ---------------- Para onde foi o tempo de cada drone ----------------

@@ -157,6 +157,14 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Diário: progresso das campanhas em linhas (v1.7.31)
+
+- Resumo operacional e Progresso das campanhas ficam um embaixo do outro, cada um na largura toda (sem o espaço vazio ao lado do progresso).
+- Progresso: uma linha por campanha com barra, %, feito, falta, programado, dias de operação e término (previsão no ritmo real até o dia). Cerca de um terço da altura do formato anterior com anéis.
+- Campanhas sem aplicação no dia, quando outra aplicou, ficam numa linha recolhida que já resume % / falta / término e abre ao tocar.
+- Nome de campanha repetido ganha "OS de dd/mm" (início da campanha) para diferenciar.
+- No celular, cada campanha vira nome, barra e os números em duas linhas.
+
 ## Motivo "Aguardando programação" (v1.7.30)
 
 - Novo motivo de parada e de dia sem aplicação: "Aguardando programação" (sem OS liberada para aplicar). Nome curto nos gráficos: "Programação".
