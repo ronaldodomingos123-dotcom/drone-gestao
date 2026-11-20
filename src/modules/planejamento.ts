@@ -60,7 +60,7 @@ function cartao(p: PlanoCampanha) {
 }
 
 const COR_DIA: Record<string, string> = { aplicacao: 'dia-apl', parado: 'dia-par', sem_registro: 'dia-sem' };
-const MOTIVO_CURTO: Record<string, string> = { 'Vento acima do limite': 'Vento', 'Umidade abaixo do limite': 'Umidade', 'Falha de equipamento': 'Equipamento', 'Falta de insumos': 'Insumos', 'Problemas de equipe': 'Equipe', 'Aguardando equipe': 'Ag. equipe', 'Aguardando liberação': 'Liberação', 'Carregamento de insumo': 'Carregamento' };
+const MOTIVO_CURTO: Record<string, string> = { 'Vento acima do limite': 'Vento', 'Umidade abaixo do limite': 'Umidade', 'Falha de equipamento': 'Equipamento', 'Falta de insumos': 'Insumos', 'Problemas de equipe': 'Equipe', 'Aguardando equipe': 'Ag. equipe', 'Aguardando liberação': 'Liberação', 'Aguardando programação': 'Programação', 'Carregamento de insumo': 'Carregamento' };
 /** Contagem de dias + faixa com um quadrado por dia (aplicação / parado / sem registro). */
 export function blocoDias(d: ResumoDias | null, titulo = 'Dias da campanha'): string {
   if (!d || !d.corridos) return '';

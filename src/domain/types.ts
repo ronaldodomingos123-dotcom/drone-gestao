@@ -244,6 +244,7 @@ export type MotivoParada =
   | 'Troca de turno'
   | 'Refeição/intervalo'
   | 'Aguardando liberação'
+  | 'Aguardando programação'
   | 'Outros';
 
 export const MOTIVOS_PARADA: MotivoParada[] = [
@@ -263,6 +264,7 @@ export const MOTIVOS_PARADA: MotivoParada[] = [
   'Troca de turno',
   'Refeição/intervalo',
   'Aguardando liberação',
+  'Aguardando programação',
   'Outros',
 ];
 

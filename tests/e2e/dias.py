@@ -36,6 +36,7 @@ def rodar(vp, rot, mobile=False):
         ir('fechamento'); pg.reload(); pg.wait_for_selector('[data-acao="dia-parado"]')
         pg.click('[data-acao="dia-parado"]'); pg.wait_for_selector('.modal [data-dp="gravar"]')
         ok(f'[{rot}] modal abre com campanha ativa marcada', pg.is_checked('.modal [data-dp-camp="c1"]'))
+        ok(f'[{rot}] motivo "Aguardando programação" disponível', pg.locator('.modal [data-dp="motivo"] option[value="Aguardando programação"]').count() == 1)
         pg.fill('.modal [data-dp="de"]', '2026-10-21'); pg.dispatch_event('.modal [data-dp="de"]', 'change')
         pg.fill('.modal [data-dp="ate"]', '2026-10-22'); pg.select_option('.modal [data-dp="motivo"]', 'Chuva'); pg.fill('.modal [data-dp="obs"]', 'chuva e vento')
         pg.click('.modal [data-dp="gravar"]'); pg.wait_for_timeout(250)

@@ -1487,6 +1487,8 @@ test('motivo da parada pelo texto: aguardando equipe e carregamento de insumo', 
   assert.equal(motivoDoTexto('carregando bateria'), 'Abastecimento/reabastecimento');
   assert.equal(motivoDoTexto('Aguardando liberação da área'), 'Aguardando liberação');
   assert.equal(motivoDoTexto('problema com operador'), 'Problemas de equipe');
+  assert.equal(motivoDoTexto('aguardando programação'), 'Aguardando programação');
+  assert.equal(motivoDoTexto('Aguardando OS nova'), 'Aguardando programação');
 });
 
 test('diário: cada produto diz em que campanha entrou e em quanta área', () => {

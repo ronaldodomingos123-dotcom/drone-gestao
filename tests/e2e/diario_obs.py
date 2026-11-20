@@ -85,7 +85,7 @@ with sync_playwright() as p:
     ef0 = {o['id']: o['tempoEfetivoMin'] for o in ds()['operacoes']}
     ok('botão "Adicionar parada" aparece', pg.locator('[data-ev-nova]').count() == 1)
     pg.click('[data-ev-nova]'); pg.wait_for_selector('.modal [data-np-hora]')
-    ok('motivos novos na lista (Fim de tarefa, Troca de turno, Refeição/intervalo, Aguardando liberação, Aguardando equipe, Carregamento de insumo)', all(pg.locator(f'.modal [data-np-motivo] option:text-is("{m}")').count() == 1 for m in ['Fim de tarefa', 'Troca de turno', 'Refeição/intervalo', 'Aguardando liberação', 'Aguardando equipe', 'Carregamento de insumo']))
+    ok('motivos novos na lista (Fim de tarefa, Troca de turno, Refeição/intervalo, Aguardando liberação, Aguardando equipe, Carregamento de insumo)', all(pg.locator(f'.modal [data-np-motivo] option:text-is("{m}")').count() == 1 for m in ['Fim de tarefa', 'Troca de turno', 'Refeição/intervalo', 'Aguardando liberação', 'Aguardando equipe', 'Carregamento de insumo', 'Aguardando programação']))
     pg.fill('.modal [data-np-hora]', '14:00'); pg.click('.modal [data-np-ok]'); pg.wait_for_timeout(200)
     ok('hora fora de qualquer voo é recusada', 'nenhum voo' in pg.locator('.modal').inner_text())
     pg.fill('.modal [data-np-hora]', '20:00'); pg.click('.modal [data-np-ok]'); pg.wait_for_timeout(200)

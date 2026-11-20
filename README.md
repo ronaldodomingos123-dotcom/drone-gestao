@@ -157,6 +157,11 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Motivo "Aguardando programação" (v1.7.30)
+
+- Novo motivo de parada e de dia sem aplicação: "Aguardando programação" (sem OS liberada para aplicar). Nome curto nos gráficos: "Programação".
+- Na leitura do texto: "aguardando programação/OS/ordem" vira esse motivo.
+
 ## Diário: ha/h em voo abaixo da meta em vermelho (v1.7.29)
 
 - Na tabela de produtividade por drone, o ha/h em voo e o "% da meta" ficam em vermelho quando o drone fica abaixo da meta de ha/h no ar (antes: laranja só abaixo de 95%). Na meta ou acima, verde.
