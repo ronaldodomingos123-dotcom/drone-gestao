@@ -230,6 +230,7 @@ export interface Operacao {
 export type MotivoParada =
   | 'Vento acima do limite'
   | 'Umidade abaixo do limite'
+  | 'Temperatura acima do limite'
   | 'Chuva'
   | 'Orvalho'
   | 'Manutenção'
@@ -250,6 +251,7 @@ export type MotivoParada =
 export const MOTIVOS_PARADA: MotivoParada[] = [
   'Vento acima do limite',
   'Umidade abaixo do limite',
+  'Temperatura acima do limite',
   'Chuva',
   'Orvalho',
   'Manutenção',
@@ -268,7 +270,7 @@ export const MOTIVOS_PARADA: MotivoParada[] = [
   'Outros',
 ];
 
-export const MOTIVOS_CLIMATICOS: MotivoParada[] = ['Vento acima do limite', 'Umidade abaixo do limite', 'Chuva', 'Orvalho'];
+export const MOTIVOS_CLIMATICOS: MotivoParada[] = ['Vento acima do limite', 'Umidade abaixo do limite', 'Temperatura acima do limite', 'Chuva', 'Orvalho'];
 
 export interface Parada {
   id: ID;

@@ -1488,6 +1488,9 @@ test('motivo da parada pelo texto: aguardando equipe e carregamento de insumo', 
   assert.equal(motivoDoTexto('Aguardando liberação da área'), 'Aguardando liberação');
   assert.equal(motivoDoTexto('problema com operador'), 'Problemas de equipe');
   assert.equal(motivoDoTexto('aguardando programação'), 'Aguardando programação');
+  assert.equal(motivoDoTexto('Temperatura acima do permitido'), 'Temperatura acima do limite');
+  assert.equal(motivoDoTexto('parado pelo calor'), 'Temperatura acima do limite');
+  assert.equal(motivoDoTexto('UR baixa'), 'Umidade abaixo do limite');
   assert.equal(motivoDoTexto('Aguardando OS nova'), 'Aguardando programação');
 });
 

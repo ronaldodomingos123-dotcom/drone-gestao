@@ -61,6 +61,7 @@ export function lerCodigoAcomp(texto: string): LeituraAcomp {
 /** Motivo da parada pelo texto da linha do tempo. */
 export function motivoDoTexto(t: string): MotivoParada {
   const x = normalizar(t);
+  if (/temperatura|calor|\btemp\b/.test(x)) return 'Temperatura acima do limite';
   if (/\bur\b|umidade/.test(x)) return 'Umidade abaixo do limite';
   if (/vento|rajada/.test(x)) return 'Vento acima do limite';
   if (/chuva|garoa/.test(x)) return 'Chuva';

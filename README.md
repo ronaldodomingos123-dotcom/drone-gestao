@@ -157,6 +157,11 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Motivo "Temperatura acima do limite" (v1.7.32)
+
+- Novo motivo de parada e de dia sem aplicação, contado junto com vento, umidade, chuva e orvalho como parada climática. Nome curto nos gráficos: "Temperatura".
+- Na leitura do texto: "temperatura", "temp" ou "calor" vira esse motivo.
+
 ## Diário: progresso das campanhas em linhas (v1.7.31)
 
 - Resumo operacional e Progresso das campanhas ficam um embaixo do outro, cada um na largura toda (sem o espaço vazio ao lado do progresso).

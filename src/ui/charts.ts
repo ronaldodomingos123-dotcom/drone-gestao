@@ -99,7 +99,7 @@ function iconeMotivo(motivo = ''): string {
   if (m.includes('manut') || m.includes('falha') || m.includes('equip')) return `<path d="M5-7a4 4 0 0 0-5 5L-6 4a2 2 0 0 0 3 3l6-6a4 4 0 0 0 5-5l-3 3-3-1-1-3z" ${st}/>`;
   return `<path d="M-3-6v12M3-6v12" ${st}/>`;
 }
-const curto = (m = '') => ({ 'Vento acima do limite': 'Vento', 'Umidade abaixo do limite': 'Umidade', 'Falha de equipamento': 'Equipamento', 'Falta de insumos': 'Insumos', 'Problemas de equipe': 'Equipe', 'Aguardando equipe': 'Ag. equipe', 'Aguardando liberação': 'Liberação', 'Aguardando programação': 'Programação', 'Carregamento de insumo': 'Carregamento' } as Record<string, string>)[m] ?? m.split(' ')[0];
+const curto = (m = '') => ({ 'Vento acima do limite': 'Vento', 'Umidade abaixo do limite': 'Umidade', 'Temperatura acima do limite': 'Temperatura', 'Falha de equipamento': 'Equipamento', 'Falta de insumos': 'Insumos', 'Problemas de equipe': 'Equipe', 'Aguardando equipe': 'Ag. equipe', 'Aguardando liberação': 'Liberação', 'Aguardando programação': 'Programação', 'Carregamento de insumo': 'Carregamento' } as Record<string, string>)[m] ?? m.split(' ')[0];
 
 /** Barras verticais de série única, com linha de meta (planejado) opcional em degraus tracejados. */
 export function barras(host: HTMLElement, pontos: PontoG[], o: { cor: string; unidade: string; rotuloX: (r: string, i: number, n: number) => string | null; altura?: number; casas?: number; meta?: MetaBarras; dias?: (MarcaDia | null)[]; /** pula rótulos do eixo X só quando não cabem (rotuloX deve devolver todos) */ rotulosPorLargura?: boolean }) {
