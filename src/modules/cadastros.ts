@@ -226,7 +226,7 @@ export function renderTurnos(raiz: HTMLElement) {
 // ---------------- Produtos ----------------
 export function renderProdutos(raiz: HTMLElement) {
   raiz.innerHTML = `${cabecalhoPagina('Produtos e insumos', 'Lista padronizada de produtos por classe. Consumo calculado pelas operações do período.', novo('produto', 'Novo produto'))}${notaFase2}<div id="pr-filtros"></div><section class="cartao"><div id="pr-tab"></div></section>
-    <p class="nota">Consumo = Σ (dose utilizada — ou planejada, quando não informada — × área aplicada da operação), convertido para a unidade de estoque. Dose, volume de calda e quantidade total são grandezas distintas.</p>`;
+    <p class="nota">Dose por hectare = média das doses usadas no período, ponderada pela área de cada operação (quando a dose variou, aparece a menor e a maior). Consumo = Σ (dose utilizada — ou planejada, quando não informada — × área aplicada da operação), convertido para a unidade de estoque. Dose, volume de calda e quantidade total são grandezas distintas.</p>`;
   const host = raiz.querySelector('#pr-tab') as HTMLElement;
   const desenhar = () => {
     const { ds, idx, filtros } = estado;
@@ -238,12 +238,29 @@ export function renderProdutos(raiz: HTMLElement) {
       return s + (q?.valor ?? 0);
     }, 0);
     const usos = (p: Produto) => ops.filter((o) => o.calda.produtos.some((x) => x.produtoId === p.id) && areaOperacao(o) > 0).length;
+    // Dose por hectare do período: média ponderada pela área das operações que usaram o produto (dose real ou, sem ela, a planejada)
+    const doseHa = new Map<string, { area: number; dose: number | null; min: number; max: number; unidade: string }>();
+    for (const p of ds.produtos) {
+      let area = 0, soma = 0, min = Infinity, max = -Infinity, areaDose = 0;
+      for (const o of ops) {
+        const it = o.calda.produtos.find((x) => x.produtoId === p.id);
+        const a = areaOperacao(o);
+        if (!it || a <= 0) continue;
+        area += a;
+        const d = it.doseReal ?? it.dosePlanejada;
+        if (d == null || it.unidade !== p.unidadeDose) continue;
+        soma += d * a; areaDose += a; min = Math.min(min, d); max = Math.max(max, d);
+      }
+      doseHa.set(p.id, { area, dose: areaDose > 0 ? soma / areaDose : null, min, max, unidade: p.unidadeDose });
+    }
+    const dh = (p: Produto) => doseHa.get(p.id)!;
     tabela<Produto>(host, ds.produtos, [
       { id: 'nome', titulo: 'Produto', valor: (p) => p.nome, render: (p) => `<b>${esc(p.nome)}</b>` },
       { id: 'cod', titulo: 'Código', valor: (p) => p.codigo ?? '', render: (p) => esc(p.codigo ?? '—') },
       { id: 'cl', titulo: 'Classe', valor: (p) => p.classe },
-      { id: 'ud', titulo: 'Unidade de dose', valor: (p) => p.unidadeDose, secundaria: true },
       { id: 'ops', titulo: 'Operações', alinhar: 'dir', valor: usos },
+      { id: 'area', titulo: 'Área aplicada', alinhar: 'dir', valor: (p) => dh(p).area, render: (p) => dh(p).area > 0 ? esc(fmtHa(dh(p).area, 2)) : '—' },
+      { id: 'dose', titulo: 'Dose por hectare', alinhar: 'dir', valor: (p) => dh(p).dose, render: (p) => { const x = dh(p); if (x.dose === null) return `<span class="muted">— ${esc(x.unidade)}</span>`; const varia = x.max - x.min > 1e-9; return `<b>${esc(fmtNum(x.dose, 3))}</b> ${esc(x.unidade)}${varia ? `<small class="bloco muted" title="Menor e maior dose usadas no período">de ${esc(fmtNum(x.min, 3))} a ${esc(fmtNum(x.max, 3))}</small>` : ''}`; } },
       { id: 'cons', titulo: 'Consumo no período', alinhar: 'dir', valor: consumo, render: (p) => `<b>${esc(fmtNum(consumo(p), 2))}</b> ${esc(p.unidadeTotal)}` },
       { id: 'ac', titulo: '', valor: () => null, render: (p) => acoesLinha('produto', p.id) },
     ], { ordemInicial: { coluna: 'cons', dir: 'desc' } });

@@ -157,6 +157,11 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Produtos: dose por hectare e área aplicada (v1.7.33)
+
+- Tabela de Produtos e insumos ganha "Área aplicada" (soma das operações do período que usaram o produto) e "Dose por hectare" (média ponderada pela área, com a dose real ou, sem ela, a planejada). Quando a dose variou no período, aparece "de X a Y".
+- Segue os filtros da tela (período, campanha, unidade, fazenda). A unidade da dose aparece junto do número (substitui a coluna "Unidade de dose").
+
 ## Motivo "Temperatura acima do limite" (v1.7.32)
 
 - Novo motivo de parada e de dia sem aplicação, contado junto com vento, umidade, chuva e orvalho como parada climática. Nome curto nos gráficos: "Temperatura".
