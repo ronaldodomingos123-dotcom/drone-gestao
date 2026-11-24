@@ -1513,3 +1513,31 @@ test('diário: cada produto diz em que campanha entrou e em quanta área', () =>
   const comum = r.produtos.find((p) => p.produtoId === opIns.calda.produtos[0].produtoId)!;
   assert.ok(comum.campanhaIds.includes('c-ins') && comum.campanhaIds.length === 2, 'produto das duas campanhas');
 });
+
+test('conferência de área no período: só o que caiu entre as datas, por OS, por dia e por dia × OS', async () => {
+  const { gerarRelatorio } = await import('../src/domain/relatorios');
+  const ds = gerarDemo();
+  const datas = [...new Set(ds.operacoes.map((o) => o.data))].sort();
+  const de = datas[5], ate = datas[12];
+  const f = { de, ate, campanhaId: '', unidadeId: '', fazendaId: '', osId: '', aeronaveId: '', pilotoId: '', turnoId: '', liderId: '', status: '' } as never;
+  const r = gerarRelatorio(ds, 'conferencia', f, 'teste', '2026-11-24T10:00:00');
+  const canceladas = new Set(ds.ordens.filter((o) => o.status === 'cancelada').map((o) => o.id));
+  const dentro = [...ds.operacoes, ...(ds.lancamentos ?? [])].filter((o) => o.data >= de && o.data <= ate && !canceladas.has(o.osId));
+  const esperado = dentro.reduce((s, o) => s + o.itens.reduce((t, i) => t + i.areaHa, 0), 0);
+  const [porOS, porDia, det] = r.secoes;
+  assert.ok(esperado > 0);
+  assert.ok(Math.abs((porOS.totais![3] as number) - esperado) < 1e-3, 'total por OS = soma independente do período');
+  assert.ok(Math.abs((porDia.totais![2] as number) - esperado) < 1e-3, 'total por dia igual');
+  assert.ok(Math.abs((det.totais![5] as number) - esperado) < 1e-3, 'total dia × OS igual');
+  assert.ok(porDia.linhas.every((l) => (l[0] as string) >= de && (l[0] as string) <= ate), 'nenhum dia fora do período');
+  // OS: a área de cada uma bate com a soma independente
+  for (const l of porOS.linhas) {
+    const os = ds.ordens.find((o) => o.numero === l[0])!;
+    const a = dentro.filter((o) => o.osId === os.id).reduce((s, o) => s + o.itens.reduce((t, i) => t + i.areaHa, 0), 0);
+    assert.ok(Math.abs((l[3] as number) - a) < 1e-3, `OS ${l[0]}`);
+  }
+  // resumo por OS ganha "Aplicado no período" com o mesmo total
+  const ro = gerarRelatorio(ds, 'os', f, 'teste', '2026-11-24T10:00:00');
+  assert.equal(ro.secoes[0].colunas.at(-1)!.titulo, 'Aplicado no período (ha)');
+  assert.ok(Math.abs((ro.secoes[0].totais!.at(-1) as number) - esperado) < 1e-3);
+});

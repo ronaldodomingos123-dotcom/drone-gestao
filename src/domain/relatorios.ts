@@ -31,6 +31,7 @@ export interface Relatorio {
 
 export const RELATORIOS = [
   { id: 'os', titulo: 'Resumo por ordem de serviço', desc: 'Programado, aplicado, saldo/obstáculo e execução de cada OS', usaPeriodo: true },
+  { id: 'conferencia', titulo: 'Conferência de área no período', desc: 'Só o que foi aplicado entre as datas: por OS, por dia e por dia × OS, para bater com o lançamento do prestador', usaPeriodo: true },
   { id: 'fazenda', titulo: 'Resumo por fazenda e talhão', desc: 'Área, programado e aplicado por talhão, com última aplicação', usaPeriodo: true },
   { id: 'aeronave', titulo: 'Desempenho por aeronave', desc: 'Área, horas, ha/h efetivo e operacional, paradas e eficiência', usaPeriodo: true },
   { id: 'operador', titulo: 'Desempenho por operador', desc: 'Mesmos indicadores por piloto', usaPeriodo: true },
@@ -112,14 +113,17 @@ function relOS(c: Ctx): Relatorio {
     { titulo: 'Talhões', tipo: 'int', total: 'soma' }, { titulo: 'Programado (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Aplicado (ha)', tipo: 'ha', total: 'soma' },
     { titulo: 'Falta aplicar (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Obstáculo (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Execução', tipo: 'pct' },
     { titulo: 'Registros', tipo: 'int', total: 'soma' }, { titulo: '1ª aplicação', tipo: 'data' }, { titulo: 'Última', tipo: 'data' },
+    { titulo: 'Aplicado no período (ha)', tipo: 'ha', total: 'soma' },
   ], linhas: [] };
+  const noPeriodo = aplicadoPorItem([...ds.operacoes, ...(ds.lancamentos ?? [])].filter((o) => (!f.de || o.data >= f.de) && (!f.ate || o.data <= f.ate)));
   for (const o of ordens) {
     const plan = areaPlanejadaOS(o);
     const a = o.itens.reduce((s, i) => s + (apl.get(chaveItem(o.id, i.talhaoId)) ?? 0), 0);
     const obst = areaObstaculo(o, aplTotal);
     const datas = ops.filter((x) => x.osId === o.id).map((x) => x.data).sort();
     sec.linhas.push([o.sequencia ?? null, o.numero, n.fazenda(o.fazendaId), n.campanha(o.campanhaId), STATUS_OS[o.status] + (o.concluidaManual ? ' (manual)' : ''), o.itens.length, round(plan, 4), round(a, 4),
-      o.status === 'concluida' ? 0 : round(Math.max(0, plan - a), 4), round(obst, 4), percentualExecutado(a, plan), datas.length, datas[0] ?? null, datas[datas.length - 1] ?? null]);
+      o.status === 'concluida' ? 0 : round(Math.max(0, plan - a), 4), round(obst, 4), percentualExecutado(a, plan), datas.length, datas[0] ?? null, datas[datas.length - 1] ?? null,
+      round(o.itens.reduce((s, i) => s + (noPeriodo.get(chaveItem(o.id, i.talhaoId)) ?? 0), 0), 4)]);
   }
   totalizar(sec);
   if (sec.totais) sec.totais[10] = percentualExecutado(sec.totais[7] as number, sec.totais[6] as number);
@@ -128,8 +132,9 @@ function relOS(c: Ctx): Relatorio {
   r.indicadores = [
     { rotulo: 'OS', valor: ordens.length, tipo: 'int' }, { rotulo: 'Programado', valor: T[6] ?? 0, tipo: 'ha' }, { rotulo: 'Aplicado', valor: T[7] ?? 0, tipo: 'ha' },
     { rotulo: 'Obstáculos', valor: T[9] ?? 0, tipo: 'ha' }, { rotulo: 'Falta aplicar', valor: T[8] ?? 0, tipo: 'ha' }, { rotulo: 'Execução', valor: T[10] ?? null, tipo: 'pct' },
+    { rotulo: 'Aplicado no período', valor: T[14] ?? 0, tipo: 'ha' },
   ];
-  r.notas.push('Aplicado = voos registrados + lançamentos (sequência/ficha diária) até a data final. Obstáculo = programado − aplicado nas OS concluídas.');
+  r.notas.push('Aplicado = voos registrados + lançamentos (sequência/ficha diária) até a data final (acumulado). "Aplicado no período" = só o que foi aplicado entre a data inicial e a final. Obstáculo = programado − aplicado nas OS concluídas.', 'Para bater área com o prestador, use o relatório "Conferência de área no período".');
   return r;
 }
 
@@ -194,6 +199,61 @@ function relDesempenho(c: Ctx, campo: 'aeronaveId' | 'pilotoId'): Relatorio {
   r.secoes.push(sec);
   r.indicadores = [{ rotulo: 'Área', valor: sec.totais?.[3] ?? 0, tipo: 'ha' }, { rotulo: 'ha/h efetivo', valor: sec.totais?.[7] ?? null, tipo: 'hah' }, { rotulo: 'ha/h operacional', valor: sec.totais?.[8] ?? null, tipo: 'hah' }, { rotulo: 'Eficiência', valor: sec.totais?.[10] ?? null, tipo: 'pct' }];
   r.notas.push('ha/h efetivo = área ÷ horas efetivas de aplicação; operacional = área ÷ horas totais (com paradas). Área lançada sem voo (sequência/ficha diária) não entra neste relatório.');
+  return r;
+}
+
+// ---------------- Conferência de área no período ----------------
+/** Só a área aplicada DENTRO do período (voos + lançamentos de área), por OS, por dia e por dia × OS.
+ *  Os outros resumos mostram o acumulado até a data final; este serve para bater com o lançamento do prestador. */
+function relConferencia(c: Ctx): Relatorio {
+  const { ds, f, idx } = c; const n = nomes(ds);
+  const r = base(c, 'conferencia', 'Conferência de área no período');
+  type Reg = { data: string; osId: string; itens: { talhaoId: string; areaHa: number }[]; origem: string; aeronave: string };
+  const regs: Reg[] = [
+    ...filtrarOperacoes(ds, f, idx).map((o) => ({ data: o.data, osId: o.osId, itens: o.itens, origem: 'Voo', aeronave: n.aeronave(o.aeronaveId) })),
+    ...filtrarLancamentos(ds, f, idx).map((l) => ({ data: l.data, osId: l.osId, itens: l.itens, origem: l.origem === 'ficha_diaria' ? 'Fechamento do dia' : 'Lançamento manual', aeronave: '' })),
+  ];
+  const area = (x: Reg) => x.itens.reduce((s, i) => s + i.areaHa, 0);
+  const porOS = new Map<string, { area: number; dias: Set<string> }>();
+  const porDiaOS = new Map<string, { data: string; osId: string; area: number; talhoes: Set<string>; origens: Set<string>; aeronaves: Set<string> }>();
+  const porDia = new Map<string, { area: number; os: Set<string> }>();
+  for (const x of regs) {
+    const a = area(x); if (a <= 0) continue;
+    const o = porOS.get(x.osId) ?? { area: 0, dias: new Set<string>() }; o.area += a; o.dias.add(x.data); porOS.set(x.osId, o);
+    const k = `${x.data}|${x.osId}`;
+    const d = porDiaOS.get(k) ?? { data: x.data, osId: x.osId, area: 0, talhoes: new Set<string>(), origens: new Set<string>(), aeronaves: new Set<string>() };
+    d.area += a; x.itens.forEach((i) => { if (i.areaHa > 0) d.talhoes.add(n.talhao(i.talhaoId)); }); d.origens.add(x.origem); if (x.aeronave) d.aeronaves.add(x.aeronave); porDiaOS.set(k, d);
+    const t = porDia.get(x.data) ?? { area: 0, os: new Set<string>() }; t.area += a; t.os.add(x.osId); porDia.set(x.data, t);
+  }
+  const apl = aplicadoAte(ds, f.ate);
+  const os = (id: string) => ds.ordens.find((o) => o.id === id);
+  const ordem = (a: string, b: string) => (n.campanha(os(a)?.campanhaId ?? '').localeCompare(n.campanha(os(b)?.campanhaId ?? ''), 'pt-BR')) || ((os(a)?.sequencia ?? 1e9) - (os(b)?.sequencia ?? 1e9)) || n.os(a).localeCompare(n.os(b), 'pt-BR', { numeric: true });
+  const secOS: Secao = { titulo: 'Por OS (só o período)', colunas: [
+    { titulo: 'OS', tipo: 'texto' }, { titulo: 'Fazenda', tipo: 'texto' }, { titulo: 'Campanha', tipo: 'texto' }, { titulo: 'Área no período (ha)', tipo: 'ha', total: 'soma' },
+    { titulo: 'Dias com aplicação', tipo: 'int' }, { titulo: '1º dia', tipo: 'data' }, { titulo: 'Último dia', tipo: 'data' }, { titulo: 'Programado da OS (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Acumulado até a data final (ha)', tipo: 'ha', total: 'soma' },
+  ], linhas: [...porOS.keys()].sort(ordem).map((id) => {
+    const x = porOS.get(id)!; const o = os(id); const dias = [...x.dias].sort();
+    const acum = o ? o.itens.reduce((s, i) => s + (apl.get(chaveItem(o.id, i.talhaoId)) ?? 0), 0) : 0;
+    return [n.os(id), o ? n.fazenda(o.fazendaId) : '—', o ? n.campanha(o.campanhaId) : '—', round(x.area, 4), dias.length, dias[0] ?? null, dias[dias.length - 1] ?? null, o ? round(areaPlanejadaOS(o), 4) : null, round(acum, 4)];
+  }) };
+  totalizar(secOS);
+  const secDia: Secao = { titulo: 'Por dia', colunas: [{ titulo: 'Data', tipo: 'data' }, { titulo: 'OS no dia', tipo: 'int' }, { titulo: 'Área (ha)', tipo: 'ha', total: 'soma' }],
+    linhas: [...porDia.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([d, x]) => [d, x.os.size, round(x.area, 4)]) };
+  totalizar(secDia);
+  const secDet: Secao = { titulo: 'Por dia e OS', colunas: [
+    { titulo: 'Data', tipo: 'data' }, { titulo: 'OS', tipo: 'texto' }, { titulo: 'Fazenda', tipo: 'texto' }, { titulo: 'Campanha', tipo: 'texto' }, { titulo: 'Talhões', tipo: 'texto' }, { titulo: 'Área (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Origem', tipo: 'texto' }, { titulo: 'Aeronaves', tipo: 'texto' },
+  ], linhas: [...porDiaOS.values()].sort((a, b) => a.data.localeCompare(b.data) || ordem(a.osId, b.osId)).map((x) => {
+    const o = os(x.osId);
+    return [x.data, n.os(x.osId), o ? n.fazenda(o.fazendaId) : '—', o ? n.campanha(o.campanhaId) : '—', [...x.talhoes].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })).join(', '), round(x.area, 4), [...x.origens].join(' + '), [...x.aeronaves].sort().join(', ')];
+  }) };
+  totalizar(secDet);
+  r.secoes.push(secOS, secDia, secDet);
+  r.indicadores = [
+    { rotulo: 'Área no período', valor: secOS.totais?.[3] ?? 0, tipo: 'ha' }, { rotulo: 'OS com aplicação', valor: porOS.size, tipo: 'int' },
+    { rotulo: 'Dias com aplicação', valor: porDia.size, tipo: 'int' }, { rotulo: 'Média por dia com aplicação', valor: safeDiv((secOS.totais?.[3] as number) ?? 0, porDia.size), tipo: 'ha' },
+  ];
+  r.notas.push('Só entra a área aplicada entre a data inicial e a final do filtro: voos e áreas lançadas no Fechamento do dia ou à mão. O Resumo por OS e o Planejado × realizado mostram o acumulado até a data final.',
+    '"Acumulado até a data final" e "Programado da OS" são só referência; a coluna para bater com o lançamento do prestador é "Área no período".');
   return r;
 }
 
@@ -370,6 +430,7 @@ export function gerarRelatorio(ds: Dataset, id: IdRelatorio, f: Filtros, respons
   const c: Ctx = { ds, f, idx, responsavel, agora };
   switch (id) {
     case 'os': return relOS(c);
+    case 'conferencia': return relConferencia(c);
     case 'fazenda': return relFazenda(c);
     case 'aeronave': return relDesempenho(c, 'aeronaveId');
     case 'operador': return relDesempenho(c, 'pilotoId');

@@ -16,7 +16,7 @@ def rodar(vp, rot, mobile=False):
         pg = ctx.new_page(); erros = []; pg.on('pageerror', lambda e: erros.append(str(e)))
         rede = []; pg.on('request', lambda r: rede.append(r.url) if not r.url.startswith(('file:', 'blob:', 'data:')) and 'fonts.g' not in r.url else None)
         pg.goto(URL + '#/relatorios'); pg.wait_for_selector('.rel-lista')
-        ok(f'[{rot}] central lista Sequência, Diário e os 9 relatórios (nenhum "planejado")', pg.locator('.rel-lista a.rel-item').count() == 11 and pg.locator('.rel-planejado').count() == 0)
+        ok(f'[{rot}] central lista Sequência, Diário e os 10 relatórios (nenhum "planejado")', pg.locator('.rel-lista a.rel-item').count() == 12 and pg.locator('.rel-planejado').count() == 0)
         for rid in IDS:
             pg.goto(URL + f'#/relatorios/ver?id={rid}'); pg.wait_for_selector('.rel-doc')
             cab = pg.locator('.rel-cab').inner_text()

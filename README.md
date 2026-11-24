@@ -157,6 +157,11 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Relatório "Conferência de área no período" (v1.7.35)
+
+- Novo relatório só com a área aplicada entre a data inicial e a final (voos + áreas do Fechamento do dia/lançamentos): por OS (área no período, dias, 1º e último dia, com programado e acumulado só de referência), por dia e por dia × OS (talhões, origem e aeronaves). Serve para bater com o lançamento do prestador. Respeita os filtros de campanha, unidade, fazenda e OS. CSV, Excel e PDF como os demais.
+- Resumo por OS ganha a coluna e o indicador "Aplicado no período" (o "Aplicado" continua sendo o acumulado até a data final).
+
 ## Produtos: classe editável direto na tabela (v1.7.34)
 
 - Em Produtos e insumos, a coluna Classe virou um seletor (Inseticida, Fungicida, Fertilizante foliar, Adjuvante, Maturador, Herbicida). Trocar grava na hora e registra no Histórico. Fora do perfil Gestor o seletor fica bloqueado.
