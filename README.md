@@ -157,6 +157,11 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Produtos: classe editável direto na tabela (v1.7.34)
+
+- Em Produtos e insumos, a coluna Classe virou um seletor (Inseticida, Fungicida, Fertilizante foliar, Adjuvante, Maturador, Herbicida). Trocar grava na hora e registra no Histórico. Fora do perfil Gestor o seletor fica bloqueado.
+- Motivo: produto criado pela importação da OS recebe a classe do tipo da campanha (ex.: adjuvante e fertilizante de uma campanha de fungicida entram como Fungicida); agora a correção é feita numa tela só.
+
 ## Produtos: dose por hectare e área aplicada (v1.7.33)
 
 - Tabela de Produtos e insumos ganha "Área aplicada" (soma das operações do período que usaram o produto) e "Dose por hectare" (média ponderada pela área, com a dose real ou, sem ela, a planejada). Quando a dose variou no período, aparece "de X a Y".

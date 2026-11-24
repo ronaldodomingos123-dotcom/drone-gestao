@@ -1,7 +1,7 @@
 /** Telas de cadastro (Fase 1: leitura sobre os dados de demonstração; edição entra na Fase 2). */
 import { desempenhoPor, filtrarOperacoes } from '../domain/analytics';
 import { aplicacoes, aplicadoPorItem, areaObstaculo, areaOperacao, areaPlanejadaOS, chaveItem, formatarDuracao, percentualExecutado, quantidadeTotal, somaParadasMin } from '../domain/calc';
-import type { Aeronave, Campanha, Colaborador, Fazenda, OrdemServico, Produto, Turno, Unidade } from '../domain/types';
+import type { Aeronave, Campanha, ClasseProduto, Colaborador, Fazenda, OrdemServico, Produto, Turno, Unidade } from '../domain/types';
 import { alterar, estado, nome } from '../state';
 import { podeGravar } from '../data/nuvem';
 import { novoId } from '../data/repository';
@@ -11,7 +11,8 @@ import { abrirModal, confirmar, esc, fmtData, fmtHa, fmtNum, fmtPct, hojeISO, to
 import { icone } from '../ui/icons';
 import { tabela } from '../ui/table';
 import { abrirDetalheOperacao } from './aplicacoes';
-import { acoesLinha } from './edicao';
+import { acoesLinha, trocarClasseProduto } from './edicao';
+import { ehGestor } from '../data/nuvem';
 const novo = (entidade: string, rotulo: string, extra = '') => `<button class="btn btn-pri" data-novo="${entidade}" ${extra}>${icone('mais', 16)} ${rotulo}</button>`;
 
 const notaFase2 = '';
@@ -225,9 +226,14 @@ export function renderTurnos(raiz: HTMLElement) {
 
 // ---------------- Produtos ----------------
 export function renderProdutos(raiz: HTMLElement) {
-  raiz.innerHTML = `${cabecalhoPagina('Produtos e insumos', 'Lista padronizada de produtos por classe. Consumo calculado pelas operações do período.', novo('produto', 'Novo produto'))}${notaFase2}<div id="pr-filtros"></div><section class="cartao"><div id="pr-tab"></div></section>
+  raiz.innerHTML = `${cabecalhoPagina('Produtos e insumos', 'Lista padronizada de produtos por classe (troque a classe direto na tabela). Consumo calculado pelas operações do período.', novo('produto', 'Novo produto'))}${notaFase2}<div id="pr-filtros"></div><section class="cartao"><div id="pr-tab"></div></section>
     <p class="nota">Dose por hectare = média das doses usadas no período, ponderada pela área de cada operação (quando a dose variou, aparece a menor e a maior). Consumo = Σ (dose utilizada — ou planejada, quando não informada — × área aplicada da operação), convertido para a unidade de estoque. Dose, volume de calda e quantidade total são grandezas distintas.</p>`;
   const host = raiz.querySelector('#pr-tab') as HTMLElement;
+  const CLASSES: ClasseProduto[] = ['Inseticida', 'Fungicida', 'Fertilizante foliar', 'Adjuvante', 'Maturador', 'Herbicida'];
+  host.addEventListener('change', (e) => {
+    const el = e.target as HTMLSelectElement;
+    if (el.dataset.classeProd) trocarClasseProduto(el.dataset.classeProd, el.value as ClasseProduto);
+  });
   const desenhar = () => {
     const { ds, idx, filtros } = estado;
     const ops = filtrarOperacoes(ds, filtros, idx);
@@ -257,7 +263,7 @@ export function renderProdutos(raiz: HTMLElement) {
     tabela<Produto>(host, ds.produtos, [
       { id: 'nome', titulo: 'Produto', valor: (p) => p.nome, render: (p) => `<b>${esc(p.nome)}</b>` },
       { id: 'cod', titulo: 'Código', valor: (p) => p.codigo ?? '', render: (p) => esc(p.codigo ?? '—') },
-      { id: 'cl', titulo: 'Classe', valor: (p) => p.classe },
+      { id: 'cl', titulo: 'Classe', valor: (p) => p.classe, render: (p) => `<select class="pr-classe" data-classe-prod="${esc(p.id)}" aria-label="Classe de ${esc(p.nome)}"${ehGestor() ? '' : ' disabled title="Só o Gestor altera a classe"'}>${CLASSES.map((c) => `<option${c === p.classe ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select>` },
       { id: 'ops', titulo: 'Operações', alinhar: 'dir', valor: usos },
       { id: 'area', titulo: 'Área aplicada', alinhar: 'dir', valor: (p) => dh(p).area, render: (p) => dh(p).area > 0 ? esc(fmtHa(dh(p).area, 2)) : '—' },
       { id: 'dose', titulo: 'Dose por hectare', alinhar: 'dir', valor: (p) => dh(p).dose, render: (p) => { const x = dh(p); if (x.dose === null) return `<span class="muted">— ${esc(x.unidade)}</span>`; const varia = x.max - x.min > 1e-9; return `<b>${esc(fmtNum(x.dose, 3))}</b> ${esc(x.unidade)}${varia ? `<small class="bloco muted" title="Menor e maior dose usadas no período">de ${esc(fmtNum(x.min, 3))} a ${esc(fmtNum(x.max, 3))}</small>` : ''}`; } },

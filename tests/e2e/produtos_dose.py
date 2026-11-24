@@ -35,6 +35,15 @@ with sync_playwright() as p:
     ok(f'{nome}: área {cela!r} ≈ {area:.2f} ha', abs(num(re.search(r'[\d.,]+', cela).group()) - area) < 0.006)
     if len(set(ds_)) > 1: ok('dose variou: mostra a menor e a maior', f"de " in celd and " a " in celd)
     ok('nota explica a média ponderada', 'ponderada pela área' in pg.locator('.nota').first.inner_text() or 'ponderada pela área' in pg.content())
+    # classe direto na tabela: troca, grava, registra no histórico e reordena pela classe nova
+    pid = prod['id']; sel = f'#pr-tab select[data-classe-prod="{pid}"]'
+    ok('classe aparece como seletor com Fertilizante foliar e Adjuvante', pg.locator(sel).count() == 1 and set(['Fertilizante foliar', 'Adjuvante', 'Inseticida', 'Fungicida']) <= set(pg.locator(sel + ' option').all_inner_texts()))
+    pg.select_option(sel, 'Fertilizante foliar'); pg.wait_for_timeout(300)
+    d2 = pg.evaluate("JSON.parse(localStorage.getItem('dap-proto-v1:dataset'))")
+    p2 = next(x for x in d2['produtos'] if x['id'] == pid)
+    aud = [a for a in d2.get('auditoria', []) if a.get('entidadeId') == pid]
+    ok(f'classe gravada ({p2["classe"]}), resto do produto igual e auditoria registrada', p2['classe'] == 'Fertilizante foliar' and p2['nome'] == prod['nome'] and p2['unidadeDose'] == prod['unidadeDose'] and any('Fertilizante foliar' in a.get('resumo', '') for a in aud))
+    ok('tabela continua mostrando a classe nova', pg.input_value(sel) == 'Fertilizante foliar')
     ok('sem erros de página', not er)
     b.close()
 for r, n in res: print(r, n)

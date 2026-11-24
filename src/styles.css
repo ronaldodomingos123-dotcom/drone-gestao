@@ -1129,3 +1129,4 @@ b.nv-ok { color: #1f7a45; } b.nv-aviso { color: #8a5a00; } b.nv-erro { color: #a
   .pc-num { text-align: left; }
   .pc-num::before { content: attr(data-rot); display: block; font-size: 10.5px; color: var(--texto-3); text-transform: uppercase; letter-spacing: .04em; }
 }
+.pr-classe { font: inherit; font-size: 13px; padding: 4px 6px; border: 1px solid var(--linha); border-radius: 7px; background: var(--fundo, #fff); color: var(--texto); max-width: 170px; }

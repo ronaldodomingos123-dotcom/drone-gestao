@@ -624,5 +624,11 @@ export function editarProduto(id?: string) {
   });
 }
 
+/** Troca só a classe de um produto (seletor direto na tabela de Produtos), com auditoria. */
+export function trocarClasseProduto(id: string, classe: ClasseProduto) {
+  const e = gravar((ds) => ds.produtos, 'produto', id, (x) => ({ ...x!, classe }), (x) => `${x.nome} → classe ${classe}`);
+  if (e) { toast(e, 'erro'); redesenhar(); } else fim('Classe atualizada.');
+}
+
 /** Botões padrão de ação numa linha de tabela. */
 export const acoesLinha = (entidade: string, id: string, extra = '') => `<span class="acoes-linha">${extra}<button class="btn-icone" data-editar="${entidade}" data-id="${esc(id)}" aria-label="Editar" title="Editar">${icone('config', 15)}</button><button class="btn-icone perigo" data-excluir="${entidade}" data-id="${esc(id)}" aria-label="Excluir" title="Excluir ou inativar">${icone('lixo', 15)}</button></span>`;
