@@ -56,7 +56,7 @@ with sync_playwright() as p:
     ok(f'Todas em andamento: sem as OS da campanha concluída ({o})', all(x in ('o2', 'o3', 'o9') for x in o) and len(o) == 3)
     nums = pg.evaluate("[...document.querySelectorAll('tr[data-os] [data-pos]')].map(i => i.value)")
     ok(f'posições renumeradas a partir de 1 ({nums})', nums == ['1', '2', '3'])
-    ok('campanha concluída fica no grupo "Concluídas" do seletor', pg.locator('[data-k="campanha"] optgroup[label="Concluídas"] option').count() == 1 and 'Fungicida' in pg.locator('[data-k="campanha"] optgroup[label="Concluídas"] option').inner_text())
+    ok('campanha concluída fica no grupo "Concluídas" do seletor', pg.locator('[data-k="campanha"] optgroup[label="Concluídas"] option').all_inner_texts()[0] == 'Todas concluídas' and pg.locator('[data-k="campanha"] optgroup[label="Concluídas"] option').count() == 2 and 'Fungicida' in pg.locator('[data-k="campanha"] optgroup[label="Concluídas"] option').nth(1).inner_text())
     rot = pg.locator('[data-k="campanha"] option').all_inner_texts()
     ok(f'nomes repetidos ganham início e nº de OS ({rot})', any('Inseticida 26/27 · início 31/10/2026 · 2 OS' in r for r in rot) and any('Inseticida 26/27 · início 10/11/2026 · 1 OS' in r for r in rot))
     pg.select_option('[data-k="campanha"]', 'c1'); pg.wait_for_timeout(300)
