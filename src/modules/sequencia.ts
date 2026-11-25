@@ -25,9 +25,13 @@ let campanhaId = '';
 let busca = '';
 /** Esconde as OS concluídas na tela (tabela, cartão e fechamento). Padrão: ligado. */
 let soFalta = true;
+/** Consulta por período: só as OS concluídas entre essas datas (data da conclusão = último dia com aplicação). */
+let concDe = '', concAte = '';
+const filtrandoConc = () => !!(concDe || concAte);
+const concluidaNoPeriodo = (l: { grupo: string; concluidaEm: string | null }) => l.grupo === 'concluida' && (!filtrandoConc() || (!!l.concluidaEm && (!concDe || l.concluidaEm >= concDe) && (!concAte || l.concluidaEm <= concAte)));
 /** Esconde só se ainda houver algo a fazer: campanha toda concluída continua consultável. */
 const esconderConcl = (ls: { grupo: string }[]) => soFalta && ls.some((l) => l.grupo !== 'concluida');
-function salvarPref() { try { localStorage.setItem(CHAVE, JSON.stringify({ campanhaId, soFalta })); } catch { /* opcional */ } }
+function salvarPref() { try { localStorage.setItem(CHAVE, JSON.stringify({ campanhaId, soFalta, concDe, concAte })); } catch { /* opcional */ } }
 
 /** "Todas as campanhas": uma sequência só com as OS de todas as campanhas (ordem própria; OS nova entra no fim). */
 const TODAS = '*todas';
@@ -58,12 +62,14 @@ function campAtual(): Campanha | undefined {
   return { ...ds.campanhas[0], id: TODAS, nome: 'Todas em andamento', tipo: (ativas.map((c) => rotuloCampanha(c.id)).join(' + ') || 'nenhuma campanha em andamento') as TipoCampanha, fim };
 }
 
-interface LinhaSeq { os: OrdemServico; plan: number; apl: number; saldo: number; obst: number; pct: number | null; grupo: 'concluida' | 'andamento' | 'seguir' }
+interface LinhaSeq { os: OrdemServico; plan: number; apl: number; saldo: number; obst: number; pct: number | null; grupo: 'concluida' | 'andamento' | 'seguir'; /** último dia com aplicação (OS concluída) */ concluidaEm: string | null }
 
 /** plan = programado BRUTO; obst = saldo de OS concluída (obstáculo/desconto apurado). */
 function linhasDaCampanha(cid: string): LinhaSeq[] {
   const ds = estado.ds;
   const apl = aplicadoPorItem(aplicacoes(ds));
+  const ultimo = new Map<string, string>();
+  for (const x of [...ds.operacoes, ...(ds.lancamentos ?? [])]) if (x.itens.some((i) => i.areaHa > 0) && (ultimo.get(x.osId) ?? '') < x.data) ultimo.set(x.osId, x.data);
   const lista = cid === TODAS ? listaGeral(ds) : ds.ordens.filter((o) => o.campanhaId === cid && o.status !== 'cancelada')
     .sort((a, b) => (a.sequencia ?? 1e9) - (b.sequencia ?? 1e9) || a.numero.localeCompare(b.numero, 'pt-BR', { numeric: true }));
   return lista.map((os) => {
@@ -71,7 +77,7 @@ function linhasDaCampanha(cid: string): LinhaSeq[] {
       const a = os.itens.reduce((s, i) => s + (apl.get(chaveItem(os.id, i.talhaoId)) ?? 0), 0);
       const grupo = os.status === 'concluida' ? 'concluida' : os.status === 'em_execucao' ? 'andamento' : 'seguir';
       const saldo = plan - a;
-      return { os, plan, apl: a, saldo, obst: grupo === 'concluida' ? Math.max(0, saldo) : 0, pct: percentualExecutado(a, plan), grupo };
+      return { os, plan, apl: a, saldo, obst: grupo === 'concluida' ? Math.max(0, saldo) : 0, pct: percentualExecutado(a, plan), grupo, concluidaEm: grupo === 'concluida' ? ultimo.get(os.id) ?? null : null };
     });
 }
 
@@ -85,7 +91,7 @@ function totaisSeq(linhas: LinhaSeq[]) {
 
 export function renderSequencia(raiz: HTMLElement) {
   const ds = estado.ds;
-  try { const s = JSON.parse(localStorage.getItem(CHAVE) ?? 'null'); if (s?.campanhaId) campanhaId = s.campanhaId; if (typeof s?.soFalta === 'boolean') soFalta = s.soFalta; } catch { /* opcional */ }
+  try { const s = JSON.parse(localStorage.getItem(CHAVE) ?? 'null'); if (s?.campanhaId) campanhaId = s.campanhaId; if (typeof s?.soFalta === 'boolean') soFalta = s.soFalta; concDe = typeof s?.concDe === 'string' ? s.concDe : ''; concAte = typeof s?.concAte === 'string' ? s.concAte : ''; } catch { /* opcional */ }
   if (campanhaId !== TODAS && !ds.campanhas.some((c) => c.id === campanhaId)) {
     // campanha com operação mais recente, ou a primeira
     const ultima = [...ds.operacoes].sort((a, b) => b.data.localeCompare(a.data))[0];
@@ -98,6 +104,7 @@ export function renderSequencia(raiz: HTMLElement) {
     const el = e.target as HTMLSelectElement;
     if (el.dataset.k === 'campanha') { campanhaId = el.value; salvarPref(); desenhar(host); }
     if (el.dataset.k === 'sofalta') { soFalta = (el as unknown as HTMLInputElement).checked; salvarPref(); desenhar(host); }
+    if (el.dataset.k === 'conc-de' || el.dataset.k === 'conc-ate') { if (el.dataset.k === 'conc-de') concDe = el.value; else concAte = el.value; salvarPref(); desenhar(host); }
   });
   host.addEventListener('input', (e) => { const el = e.target as HTMLInputElement; if (el.dataset.k === 'busca') { busca = el.value; desenharTabela(host); } });
   // posição digitada: aplica ao confirmar (Enter ou sair do campo)
@@ -117,6 +124,7 @@ export function renderSequencia(raiz: HTMLElement) {
 async function aoClicar(e: Event, host: HTMLElement) {
   const ex = (e.target as HTMLElement).closest('[data-exp]') as HTMLButtonElement | null;
   if (ex) { const r = relSequencia(); if (r) void exportarRelatorio(r, ex.dataset.exp as 'csv' | 'xlsx' | 'pdf', ex); return; }
+  if ((e.target as HTMLElement).closest('[data-limpar-conc]')) { concDe = ''; concAte = ''; salvarPref(); desenhar(host); return; }
   const b = (e.target as HTMLElement).closest('[data-acao]') as HTMLButtonElement | null;
   if (!b) return;
   const acao = b.dataset.acao;
@@ -195,16 +203,17 @@ function desenhar(host: HTMLElement) {
   const proxima = linhas.find((l) => l.grupo === 'andamento') ?? linhas.find((l) => l.grupo === 'seguir');
   const fzTxt = (l: LinhaSeq) => { const f = ds.fazendas.find((x) => x.id === l.os.fazendaId); return `${f?.codigo ? `<b>${esc(f.codigo)}</b> ` : ''}<span>${esc(f?.nome ?? '—')}</span>`; };
   const cartao = (g: LinhaSeq['grupo'], titulo: string, cls: string, rodRot: string, rodVal: number, valor: (l: LinhaSeq) => number) => {
-    const ls = linhas.filter((l) => l.grupo === g);
-    return `<section class="seq-card ${cls}"><header><span>${titulo}</span><b>${ls.length}</b></header>
-      <div class="seq-card-lista">${g === 'concluida' && esconderConcl(linhas) && ls.length ? `<p class="seq-card-vazio">${ls.length} concluída${ls.length > 1 ? 's' : ''} oculta${ls.length > 1 ? 's' : ''}. Desmarque <b>Só o que falta fazer</b> para ver.</p>` : ls.map((l) => `<div class="seq-card-it ${l.os.id === proxima?.os.id ? 'prox' : ''}">${l.os.id === proxima?.os.id ? `<span class="seq-tag-prox">Próxima · S${seqDe(l.os) ?? '-'}</span>` : `<span class="seq-tag">S${seqDe(l.os) ?? '-'}</span>`}<span class="seq-card-faz">${fzTxt(l)}</span><span class="seq-card-ha">${esc(fmtNum(valor(l), 2))} ha${g === 'concluida' && l.obst > 0.005 ? `<small>obst. ${esc(fmtNum(l.obst, 2))}</small>` : ''}</span></div>`).join('') || '<p class="seq-card-vazio">Nenhuma fazenda neste grupo.</p>'}</div>
+    const ls = linhas.filter((l) => l.grupo === g && (g !== 'concluida' || concluidaNoPeriodo(l)));
+    return `<section class="seq-card ${cls}"><header><span>${titulo}${g === 'concluida' && filtrandoConc() ? ' no período' : ''}</span><b>${ls.length}</b></header>
+      <div class="seq-card-lista">${g === 'concluida' && !filtrandoConc() && esconderConcl(linhas) && ls.length ? `<p class="seq-card-vazio">${ls.length} concluída${ls.length > 1 ? 's' : ''} oculta${ls.length > 1 ? 's' : ''}. Desmarque <b>Só o que falta fazer</b> para ver.</p>` : ls.map((l) => `<div class="seq-card-it ${l.os.id === proxima?.os.id ? 'prox' : ''}">${l.os.id === proxima?.os.id ? `<span class="seq-tag-prox">Próxima · S${seqDe(l.os) ?? '-'}</span>` : `<span class="seq-tag">S${seqDe(l.os) ?? '-'}</span>`}<span class="seq-card-faz">${fzTxt(l)}</span><span class="seq-card-ha">${esc(fmtNum(valor(l), 2))} ha${g === 'concluida' && l.obst > 0.005 ? `<small>obst. ${esc(fmtNum(l.obst, 2))}</small>` : ''}</span></div>`).join('') || '<p class="seq-card-vazio">Nenhuma fazenda neste grupo.</p>'}</div>
       <footer><span>${rodRot}</span><b>${esc(fmtNum(rodVal, 2))} ha</b></footer></section>`;
   };
-  const conc = linhas.filter((l) => l.grupo === 'concluida'), and = linhas.filter((l) => l.grupo === 'andamento'), seg = linhas.filter((l) => l.grupo === 'seguir');
+  const conc = linhas.filter(concluidaNoPeriodo), and = linhas.filter((l) => l.grupo === 'andamento'), seg = linhas.filter((l) => l.grupo === 'seguir');
   host.innerHTML = `
     <div class="seq-barra">
       <label class="f-campo"><span>Campanha</span><select data-k="campanha">${ds.campanhas.length > 1 ? `<option value="${TODAS}" ${ehTodas() ? 'selected' : ''}>Todas em andamento</option>` : ''}${opcoesCampanha(campanhaId) || '<option value="">Nenhuma campanha</option>'}</select></label>
       <label class="seq-sofalta" title="Esconde as fazendas já concluídas"><input type="checkbox" data-k="sofalta" ${soFalta ? 'checked' : ''}> Só o que falta fazer</label>
+      <span class="seq-per" title="Consulta as OS concluídas num período (data da conclusão = último dia com aplicação)"><label class="f-campo"><span>Concluídas de</span><input type="date" data-k="conc-de" value="${esc(concDe)}"></label><label class="f-campo"><span>até</span><input type="date" data-k="conc-ate" value="${esc(concAte)}"></label>${filtrandoConc() ? '<button class="btn btn-sec btn-peq" data-limpar-conc>Limpar período</button>' : ''}</span>
       <label class="busca">${icone('busca', 16)}<input data-k="busca" type="search" placeholder="Pesquisar por fazenda ou FN…" value="${esc(busca)}"></label>
       <button class="btn btn-sec btn-peq" data-acao="copiar">${icone('relatorio', 15)} Copiar resumo</button>
       <button class="btn btn-sec btn-peq" data-acao="imagem">${icone('camadas', 15)} Salvar imagem</button>
@@ -224,16 +233,17 @@ function desenhar(host: HTMLElement) {
       <div class="progresso seq-prog seq-prog-duplo" title="Verde: aplicado · Laranja: obstáculos"><div style="width:${Math.max(0, Math.min(100, T.plan ? (T.apl / T.plan) * 100 : 0))}%"></div><div class="obst" style="width:${Math.max(0, Math.min(100, T.plan ? (T.obst / T.plan) * 100 : 0))}%"></div></div>
     </section>
     ${ehTodas() || camp.calda?.produtos.length ? '' : aviso('atencao', `Campanha sem calda definida. <button class="link" data-editar="campanha" data-id="${esc(camp.id)}">Definir produtos e doses</button> — sem isso as aplicações não podem ser registradas.`)}
+    ${filtrandoConc() ? aviso('info', `Consultando as OS concluídas ${concDe && concAte ? `de ${esc(fmtData(concDe))} até ${esc(fmtData(concAte))}` : concDe ? `a partir de ${esc(fmtData(concDe))}` : `até ${esc(fmtData(concAte))}`}: <b>${conc.length}</b> OS · aplicado <b>${esc(fmtHa(conc.reduce((s, l) => s + l.apl, 0), 2))}</b> · obstáculo <b>${esc(fmtHa(conc.reduce((s, l) => s + l.obst, 0), 2))}</b>. A tabela mostra só essas OS; o topo continua com a campanha inteira.`) : ''}
     <div class="seq-cards">
       ${cartao('concluida', 'Concluídas', 'c-conc', 'Aplicado', conc.reduce((s, l) => s + l.apl, 0), (l) => l.apl)}
       ${cartao('andamento', 'Em andamento', 'c-and', 'Falta', and.reduce((s, l) => s + Math.max(0, l.saldo), 0), (l) => Math.max(0, l.saldo))}
       ${cartao('seguir', 'A seguir', 'c-seg', 'A aplicar', seg.reduce((s, l) => s + l.plan, 0), (l) => l.plan)}
     </div>
     <section class="cartao seq-tabela" id="seq-tab"></section>
-    ${conc.length && !esconderConcl(linhas) ? `<section class="cartao seq-fech"><h3 class="sec-tit">${icone('ok', 16)} Fechamento — aplicado × obstáculos (${conc.length} concluída${conc.length > 1 ? 's' : ''})</h3>
-      <div class="tabela-rolagem"><table class="tabela tabela-simples"><thead><tr><th>Seq.</th><th>Fazenda</th><th class="dir">Programado</th><th class="dir">Aplicado</th><th class="dir">Obstáculo</th><th class="dir">Aproveitamento</th></tr></thead><tbody>
-      ${conc.map((l) => `<tr><td>S${seqDe(l.os) ?? '-'}</td><td>${fzTxt(l)}</td><td class="dir">${esc(fmtNum(l.plan, 2))}</td><td class="dir"><b>${esc(fmtNum(l.apl, 2))}</b></td><td class="dir">${l.obst > 0.005 ? esc(fmtNum(l.obst, 2)) : '—'}</td><td class="dir">${esc(fmtPct(l.pct, 1))}</td></tr>`).join('')}
-      </tbody><tfoot>${(() => { const p = conc.reduce((s, l) => s + l.plan, 0), a2 = conc.reduce((s, l) => s + l.apl, 0), o2 = conc.reduce((s, l) => s + l.obst, 0); return `<tr><td></td><td>Total</td><td class="dir">${esc(fmtNum(p, 2))}</td><td class="dir"><b>${esc(fmtNum(a2, 2))}</b></td><td class="dir">${esc(fmtNum(o2, 2))}</td><td class="dir">${esc(fmtPct(percentualExecutado(a2, p), 1))}</td></tr>`; })()}</tfoot></table></div>
+    ${conc.length && (filtrandoConc() || !esconderConcl(linhas)) ? `<section class="cartao seq-fech"><h3 class="sec-tit">${icone('ok', 16)} Fechamento — aplicado × obstáculos (${conc.length} concluída${conc.length > 1 ? 's' : ''}${filtrandoConc() ? ' no período' : ''})</h3>
+      <div class="tabela-rolagem"><table class="tabela tabela-simples"><thead><tr><th>Seq.</th><th>Fazenda</th><th>Concluída em</th><th class="dir">Programado</th><th class="dir">Aplicado</th><th class="dir">Obstáculo</th><th class="dir">Aproveitamento</th></tr></thead><tbody>
+      ${conc.map((l) => `<tr><td>S${seqDe(l.os) ?? '-'}</td><td>${fzTxt(l)}</td><td>${l.concluidaEm ? esc(fmtData(l.concluidaEm)) : '—'}</td><td class="dir">${esc(fmtNum(l.plan, 2))}</td><td class="dir"><b>${esc(fmtNum(l.apl, 2))}</b></td><td class="dir">${l.obst > 0.005 ? esc(fmtNum(l.obst, 2)) : '—'}</td><td class="dir">${esc(fmtPct(l.pct, 1))}</td></tr>`).join('')}
+      </tbody><tfoot>${(() => { const p = conc.reduce((s, l) => s + l.plan, 0), a2 = conc.reduce((s, l) => s + l.apl, 0), o2 = conc.reduce((s, l) => s + l.obst, 0); return `<tr><td></td><td>Total</td><td></td><td class="dir">${esc(fmtNum(p, 2))}</td><td class="dir"><b>${esc(fmtNum(a2, 2))}</b></td><td class="dir">${esc(fmtNum(o2, 2))}</td><td class="dir">${esc(fmtPct(percentualExecutado(a2, p), 1))}</td></tr>`; })()}</tfoot></table></div>
       <p class="nota">Obstáculo = programado − aplicado nas OS concluídas (carreadores, APP, falhas, desvios). Não entra no "falta aplicar" nem na previsão de término.</p></section>` : ''}`}`;
   if (camp) desenharTabela(host);
 }
@@ -245,7 +255,7 @@ function desenharTabela(host: HTMLElement) {
   const linhas = linhasDaCampanha(campanhaId);
   const proximaId = (linhas.find((l) => l.grupo === 'andamento') ?? linhas.find((l) => l.grupo === 'seguir'))?.os.id;
   const t = busca.trim().toLowerCase();
-  const visiveis = esconderConcl(linhas) ? linhas.filter((l) => l.grupo !== 'concluida') : linhas;
+  const visiveis = filtrandoConc() ? linhas.filter(concluidaNoPeriodo) : esconderConcl(linhas) ? linhas.filter((l) => l.grupo !== 'concluida') : linhas;
   const ocultas = linhas.length - visiveis.length;
   const filtradas = t ? visiveis.filter((l) => { const f = ds.fazendas.find((x) => x.id === l.os.fazendaId); return `${f?.codigo} ${f?.nome} ${l.os.numero} ${l.os.titulo ?? ''}`.toLowerCase().includes(t); }) : visiveis;
   const etapa = (ativo: boolean, tipo: 'ok' | 'and') => (ativo ? `<span class="seq-pill ${tipo === 'ok' ? 'p-ok' : 'p-and'}">${tipo === 'ok' ? 'OK' : 'EM AND.'}</span>` : '<span class="seq-pill p-nao">—</span>');
@@ -257,7 +267,7 @@ function desenharTabela(host: HTMLElement) {
     return `<tr class="${prox ? 'seq-proxima' : ''} seq-${l.grupo}" data-os="${esc(l.os.id)}" data-seq="${seqDe(l.os) ?? 0}">
       <td class="seq-pos-cel"><span class="seq-alca" data-arrastar title="Arrastar para mudar a ordem" aria-hidden="true">⠿</span><span class="seq-s">S</span><input class="seq-pos" type="number" min="1" max="${linhas.length}" inputmode="numeric" value="${seqDe(l.os) ?? ''}" data-pos="${esc(l.os.id)}" aria-label="Posição de ${esc(f?.nome ?? '')} na sequência" title="Digite a nova posição e tecle Enter"><span class="seq-setas"><button class="btn-icone" data-acao="subir" data-id="${esc(l.os.id)}" aria-label="Subir" title="Subir na sequência">▲</button><button class="btn-icone" data-acao="descer" data-id="${esc(l.os.id)}" aria-label="Descer" title="Descer na sequência">▼</button></span></td>
       <td class="m-oculta">${esc(f?.codigo ?? '')}</td>
-      <td><b>${esc(f?.nome ?? '—')}</b>${prox ? ' <span class="selo selo-ok">Próxima</span>' : ''}<small class="bloco">${ehTodas() ? `<b class="seq-camp">${esc(ds.campanhas.find((c) => c.id === l.os.campanhaId)?.nome ?? '—')}</b> · ` : ''}${l.os.emissao ? `<span class="seq-saiu">saiu ${esc(fmtData(l.os.emissao))}</span> · ` : ''}OS ${esc(l.os.numero)}${l.os.titulo ? ` · ${esc(l.os.titulo)}` : ''}${geral ? ' · talhão geral' : ` · ${l.os.itens.length} talhão(ões)`}</small></td>
+      <td><b>${esc(f?.nome ?? '—')}</b>${prox ? ' <span class="selo selo-ok">Próxima</span>' : ''}<small class="bloco">${ehTodas() ? `<b class="seq-camp">${esc(ds.campanhas.find((c) => c.id === l.os.campanhaId)?.nome ?? '—')}</b> · ` : ''}${l.os.emissao ? `<span class="seq-saiu">saiu ${esc(fmtData(l.os.emissao))}</span> · ` : ''}${l.concluidaEm ? `<span class="seq-saiu">concluída ${esc(fmtData(l.concluidaEm))}</span> · ` : ''}OS ${esc(l.os.numero)}${l.os.titulo ? ` · ${esc(l.os.titulo)}` : ''}${geral ? ' · talhão geral' : ` · ${l.os.itens.length} talhão(ões)`}</small></td>
       <td class="dir">${esc(fmtNum(l.plan, 2))}</td>
       <td class="dir"><button type="button" class="seq-apl" data-acao="aplicado" data-id="${esc(l.os.id)}" title="Lançar/editar o aplicado e o desconto">${esc(fmtNum(l.apl, 2))} <span class="seq-lapis">${icone('config', 12)}</span></button></td>
       <td class="dir ${l.saldo < -0.01 ? 'txt-critico' : ''}"><b>${esc(fmtNum(l.saldo, 2))}</b>${l.obst > 0.005 ? '<small class="bloco seq-obst">obstáculo</small>' : ''}</td>
@@ -276,8 +286,8 @@ function desenharTabela(host: HTMLElement) {
   el.innerHTML = filtradas.length ? `<div class="tabela-rolagem"><table class="tabela tabela-simples seq-t">
     <thead><tr><th>Sequência</th><th class="m-oculta">FN</th><th>Fazenda</th><th class="dir">Área (ha)</th><th class="dir">Aplicado (ha)</th><th class="dir">Saldo (ha)</th><th class="centro m-oculta">Programada</th><th class="centro m-oculta">Em and.</th><th class="centro m-oculta">Concluída</th><th>Progresso</th><th class="seq-acoes">Ação</th></tr></thead>
     <tbody>${filtradas.map(linhaHTML).join('')}</tbody>
-    <tfoot><tr><td></td><td class="m-oculta"></td><td>Total (${filtradas.length})${ocultas ? `<small class="bloco seq-ocultas">${ocultas} concluída${ocultas > 1 ? 's' : ''} oculta${ocultas > 1 ? 's' : ''}</small>` : ''}</td><td class="dir">${esc(fmtNum(tot.plan, 2))}</td><td class="dir">${esc(fmtNum(tot.apl, 2))}</td><td class="dir">${esc(fmtNum(tot.plan - tot.apl, 2))}<small class="bloco seq-obst">${tot.obst > 0.005 ? `obst. ${esc(fmtNum(tot.obst, 2))} · falta ${esc(fmtNum(tot.falta, 2))}` : ''}</small></td><td class="m-oculta" colspan="3"></td><td colspan="2"></td></tr></tfoot>
-  </table></div>` : `<p class="vazio-txt">${t ? 'Nenhuma OS para a busca.' : ocultas ? `Nada a fazer: as ${ocultas} OS estão concluídas. Desmarque <b>Só o que falta fazer</b> para ver.` : 'Campanha sem OS. Importe a sequência ou crie uma OS.'}</p>`;
+    <tfoot><tr><td></td><td class="m-oculta"></td><td>Total (${filtradas.length})${ocultas && !filtrandoConc() ? `<small class="bloco seq-ocultas">${ocultas} concluída${ocultas > 1 ? 's' : ''} oculta${ocultas > 1 ? 's' : ''}</small>` : ''}</td><td class="dir">${esc(fmtNum(tot.plan, 2))}</td><td class="dir">${esc(fmtNum(tot.apl, 2))}</td><td class="dir">${esc(fmtNum(tot.plan - tot.apl, 2))}<small class="bloco seq-obst">${tot.obst > 0.005 ? `obst. ${esc(fmtNum(tot.obst, 2))} · falta ${esc(fmtNum(tot.falta, 2))}` : ''}</small></td><td class="m-oculta" colspan="3"></td><td colspan="2"></td></tr></tfoot>
+  </table></div>` : `<p class="vazio-txt">${t ? 'Nenhuma OS para a busca.' : filtrandoConc() ? 'Nenhuma OS concluída nesse período.' : ocultas ? `Nada a fazer: as ${ocultas} OS estão concluídas. Desmarque <b>Só o que falta fazer</b> para ver.` : 'Campanha sem OS. Importe a sequência ou crie uma OS.'}</p>`;
 }
 
 /** A Sequência como relatório exportável (mesmos números da tela). */
@@ -285,20 +295,21 @@ function relSequencia(): Relatorio | null {
   const ds = estado.ds;
   const camp = campAtual();
   if (!camp) return null;
-  const linhas = linhasDaCampanha(campanhaId);
+  const todas = linhasDaCampanha(campanhaId);
+  const linhas = filtrandoConc() ? todas.filter(concluidaNoPeriodo) : todas;
   const T = totaisSeq(linhas);
   const fz = (l: LinhaSeq) => ds.fazendas.find((x) => x.id === l.os.fazendaId);
   const GR: Record<string, string> = { concluida: 'Concluída', andamento: 'Em andamento', seguir: 'A seguir' };
   const agora = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString();
   const r: Relatorio = {
-    id: 'sequencia', titulo: `Sequência de aplicação — ${camp.nome}`, periodo: null, filtros: [`Campanha: ${camp.nome} (${camp.tipo}, prazo ${fmtData(camp.fim)})`], geradoEm: agora, responsavel: responsavelAtual(),
+    id: 'sequencia', titulo: `Sequência de aplicação — ${camp.nome}`, periodo: null, filtros: [`Campanha: ${camp.nome} (${camp.tipo}, prazo ${fmtData(camp.fim)})`, ...(filtrandoConc() ? [`Só OS concluídas ${concDe ? `de ${fmtData(concDe)} ` : ''}${concAte ? `até ${fmtData(concAte)}` : ''} (último dia com aplicação)`] : [])], geradoEm: agora, responsavel: responsavelAtual(),
     indicadores: [{ rotulo: 'Programado', valor: T.plan, tipo: 'ha' }, { rotulo: 'Aplicado', valor: T.apl, tipo: 'ha' }, { rotulo: 'Obstáculos', valor: T.obst, tipo: 'ha' }, { rotulo: 'Falta aplicar', valor: T.falta, tipo: 'ha' }, { rotulo: 'Executado', valor: T.pct, tipo: 'pct' }],
-    secoes: [{ titulo: 'Sequência', colunas: [{ titulo: 'Seq.', tipo: 'int' }, { titulo: 'FN', tipo: 'texto' }, { titulo: 'Fazenda', tipo: 'texto' }, { titulo: 'OS', tipo: 'texto' }, { titulo: 'OS saiu em', tipo: 'texto' }, { titulo: 'Situação', tipo: 'texto' }, { titulo: 'Área (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Aplicado (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Saldo (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Obstáculo (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Progresso', tipo: 'pct' }],
-      linhas: linhas.map((l) => [seqDe(l.os) ?? null, fz(l)?.codigo ?? '', fz(l)?.nome ?? '', l.os.numero, l.os.emissao ? fmtData(l.os.emissao) : '', GR[l.grupo], round(l.plan, 4), round(l.apl, 4), round(l.saldo, 4), round(l.obst, 4), l.pct]) }],
+    secoes: [{ titulo: 'Sequência', colunas: [{ titulo: 'Seq.', tipo: 'int' }, { titulo: 'FN', tipo: 'texto' }, { titulo: 'Fazenda', tipo: 'texto' }, { titulo: 'OS', tipo: 'texto' }, { titulo: 'OS saiu em', tipo: 'texto' }, { titulo: 'Situação', tipo: 'texto' }, { titulo: 'Concluída em', tipo: 'texto' }, { titulo: 'Área (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Aplicado (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Saldo (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Obstáculo (ha)', tipo: 'ha', total: 'soma' }, { titulo: 'Progresso', tipo: 'pct' }],
+      linhas: linhas.map((l) => [seqDe(l.os) ?? null, fz(l)?.codigo ?? '', fz(l)?.nome ?? '', l.os.numero, l.os.emissao ? fmtData(l.os.emissao) : '', GR[l.grupo], l.concluidaEm ? fmtData(l.concluidaEm) : '', round(l.plan, 4), round(l.apl, 4), round(l.saldo, 4), round(l.obst, 4), l.pct]) }],
     notas: ['Obstáculo = programado − aplicado nas OS concluídas; não entra no "falta aplicar".'],
   };
   const s0 = r.secoes[0];
-  s0.totais = ['Total', null, `${linhas.length} OS`, null, null, null, round(T.plan, 4), round(T.apl, 4), round(T.plan - T.apl, 4), round(T.obst, 4), T.pct];
+  s0.totais = ['Total', null, `${linhas.length} OS`, null, null, null, null, round(T.plan, 4), round(T.apl, 4), round(T.plan - T.apl, 4), round(T.obst, 4), T.pct];
   return r;
 }
 

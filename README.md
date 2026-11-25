@@ -157,6 +157,11 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Sequência: consultar concluídas por período (v1.7.36)
+
+- Campos "Concluídas de / até" na Sequência: mostram só as OS concluídas nesse intervalo (tabela, cartão "Concluídas no período" e fechamento aplicado × obstáculos), com um aviso que resume quantas OS, aplicado e obstáculo. O topo continua com a campanha inteira. Botão "Limpar período"; o período fica guardado no aparelho.
+- Data da conclusão = último dia com aplicação na OS (voo ou lançamento). Aparece na linha ("concluída dd/mm/aaaa"), no fechamento e na coluna "Concluída em" de CSV/Excel/PDF, que também seguem o período.
+
 ## Relatório "Conferência de área no período" (v1.7.35)
 
 - Novo relatório só com a área aplicada entre a data inicial e a final (voos + áreas do Fechamento do dia/lançamentos): por OS (área no período, dias, 1º e último dia, com programado e acumulado só de referência), por dia e por dia × OS (talhões, origem e aeronaves). Serve para bater com o lançamento do prestador. Respeita os filtros de campanha, unidade, fazenda e OS. CSV, Excel e PDF como os demais.
