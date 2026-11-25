@@ -157,6 +157,10 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Sequência: "Todas concluídas" (v1.7.37)
+
+- No seletor de campanha, grupo Concluídas, a opção "Todas concluídas" junta as OS de todas as campanhas já terminadas (cada linha diz a campanha). Funciona com a consulta "Concluídas de / até" e com as exportações. É só consulta: subir, descer e arrastar não mudam a ordem nessa visão.
+
 ## Sequência: consultar concluídas por período (v1.7.36)
 
 - Campos "Concluídas de / até" na Sequência: mostram só as OS concluídas nesse intervalo (tabela, cartão "Concluídas no período" e fechamento aplicado × obstáculos), com um aviso que resume quantas OS, aplicado e obstáculo. O topo continua com a campanha inteira. Botão "Limpar período"; o período fica guardado no aparelho.

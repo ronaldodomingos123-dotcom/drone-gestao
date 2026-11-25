@@ -35,9 +35,12 @@ function salvarPref() { try { localStorage.setItem(CHAVE, JSON.stringify({ campa
 
 /** "Todas as campanhas": uma sequência só com as OS de todas as campanhas (ordem própria; OS nova entra no fim). */
 const TODAS = '*todas';
-const ehTodas = () => campanhaId === TODAS;
+/** "Todas concluídas": consulta das OS de todas as campanhas já terminadas (ordem de cada campanha; não reordena). */
+const CONCL = '*concluidas';
+const ehConcl = () => campanhaId === CONCL;
+const ehTodas = () => campanhaId === TODAS || ehConcl();
 // em "Todas", a posição vem da lista atual (fica certa mesmo antes da próxima gravação renumerar)
-const seqDe = (o: OrdemServico) => (ehTodas() ? (listaGeral(estado.ds).findIndex((x) => x.id === o.id) + 1 || undefined) : o.sequencia);
+const seqDe = (o: OrdemServico) => (campanhaId === TODAS ? (listaGeral(estado.ds).findIndex((x) => x.id === o.id) + 1 || undefined) : o.sequencia);
 /** Nome da campanha; com nome repetido, acrescenta o início para diferenciar. */
 function rotuloCampanha(id: string): string {
   const ds = estado.ds; const c = ds.campanhas.find((x) => x.id === id);
@@ -50,13 +53,17 @@ function opcoesCampanha(sel: string): string {
   const ds = estado.ds;
   const ativas = ds.campanhas.filter((c) => !campanhaConcluida(ds, c.id)), concl = ds.campanhas.filter((c) => campanhaConcluida(ds, c.id));
   const op = (c: Campanha) => `<option value="${esc(c.id)}" ${c.id === sel ? 'selected' : ''}>${esc(rotuloCampanha(c.id))}</option>`;
-  return ativas.map(op).join('') + (concl.length ? `<optgroup label="Concluídas">${concl.map(op).join('')}</optgroup>` : '');
+  return ativas.map(op).join('') + (concl.length ? `<optgroup label="Concluídas"><option value="${CONCL}" ${sel === CONCL ? 'selected' : ''}>Todas concluídas</option>${concl.map(op).join('')}</optgroup>` : '');
 }
 /** Campanha da tela; em "Todas" um resumo das campanhas (só para títulos). */
 function campAtual(): Campanha | undefined {
   const ds = estado.ds;
   if (!ehTodas()) return ds.campanhas.find((c) => c.id === campanhaId);
   if (!ds.campanhas.length) return undefined;
+  if (ehConcl()) {
+    const cs = ds.campanhas.filter((c) => campanhaConcluida(ds, c.id));
+    return { ...ds.campanhas[0], id: CONCL, nome: 'Todas concluídas', tipo: (cs.map((c) => rotuloCampanha(c.id)).join(' + ') || 'nenhuma campanha concluída') as TipoCampanha, fim: cs.map((c) => c.fim).filter(Boolean).sort().pop() ?? '' };
+  }
   const fim = ds.campanhas.map((c) => c.fim).filter(Boolean).sort().pop() ?? '';
   const ativas = ds.campanhas.filter((c) => !campanhaConcluida(ds, c.id));
   return { ...ds.campanhas[0], id: TODAS, nome: 'Todas em andamento', tipo: (ativas.map((c) => rotuloCampanha(c.id)).join(' + ') || 'nenhuma campanha em andamento') as TipoCampanha, fim };
@@ -70,7 +77,11 @@ function linhasDaCampanha(cid: string): LinhaSeq[] {
   const apl = aplicadoPorItem(aplicacoes(ds));
   const ultimo = new Map<string, string>();
   for (const x of [...ds.operacoes, ...(ds.lancamentos ?? [])]) if (x.itens.some((i) => i.areaHa > 0) && (ultimo.get(x.osId) ?? '') < x.data) ultimo.set(x.osId, x.data);
-  const lista = cid === TODAS ? listaGeral(ds) : ds.ordens.filter((o) => o.campanhaId === cid && o.status !== 'cancelada')
+  const camps = ds.campanhas;
+  const lista = cid === TODAS ? listaGeral(ds) : cid === CONCL
+    ? ds.ordens.filter((o) => o.status !== 'cancelada' && campanhaConcluida(ds, o.campanhaId))
+      .sort((a, b) => { const ca = camps.find((c) => c.id === a.campanhaId), cb = camps.find((c) => c.id === b.campanhaId); return (ca?.inicio ?? '').localeCompare(cb?.inicio ?? '') || (ca?.nome ?? '').localeCompare(cb?.nome ?? '', 'pt-BR') || a.campanhaId.localeCompare(b.campanhaId) || (a.sequencia ?? 1e9) - (b.sequencia ?? 1e9); })
+    : ds.ordens.filter((o) => o.campanhaId === cid && o.status !== 'cancelada')
     .sort((a, b) => (a.sequencia ?? 1e9) - (b.sequencia ?? 1e9) || a.numero.localeCompare(b.numero, 'pt-BR', { numeric: true }));
   return lista.map((os) => {
       const plan = areaPlanejadaOS(os);
@@ -92,7 +103,7 @@ function totaisSeq(linhas: LinhaSeq[]) {
 export function renderSequencia(raiz: HTMLElement) {
   const ds = estado.ds;
   try { const s = JSON.parse(localStorage.getItem(CHAVE) ?? 'null'); if (s?.campanhaId) campanhaId = s.campanhaId; if (typeof s?.soFalta === 'boolean') soFalta = s.soFalta; concDe = typeof s?.concDe === 'string' ? s.concDe : ''; concAte = typeof s?.concAte === 'string' ? s.concAte : ''; } catch { /* opcional */ }
-  if (campanhaId !== TODAS && !ds.campanhas.some((c) => c.id === campanhaId)) {
+  if (campanhaId !== TODAS && campanhaId !== CONCL && !ds.campanhas.some((c) => c.id === campanhaId)) {
     // campanha com operação mais recente, ou a primeira
     const ultima = [...ds.operacoes].sort((a, b) => b.data.localeCompare(a.data))[0];
     campanhaId = ultima?.campanhaId ?? ds.campanhas[0]?.id ?? '';
@@ -144,6 +155,7 @@ function mover(osId: string, delta: number) {
 
 /** Leva a OS para a posição informada e renumera a campanha (com auditoria). */
 function moverPara(osId: string, posicao: number) {
+  if (ehConcl()) { toast('Em "Todas concluídas" a ordem não muda. Escolha a campanha para reordenar.', 'erro'); redesenhar(); return; }
   let r: ReturnType<typeof moverNaSequencia> = null;
   const erro = alterar((ds) => {
     r = ehTodas() ? moverNaSequenciaGeral(ds, osId, posicao) : moverNaSequencia(ds, campanhaId, osId, posicao);
@@ -222,7 +234,7 @@ function desenhar(host: HTMLElement) {
     </div>
     ${!camp ? aviso('info', 'Nenhuma campanha cadastrada. Use <b>Importar sequência</b> para colar a tabela do Excel — a campanha, as fazendas e as OS são criadas automaticamente.') : `
     <section class="seq-topo">
-      <div class="seq-tit"><small>Sequência de aplicação</small><h2>${esc(camp.nome)}</h2><p>${ehTodas() ? `${esc(camp.tipo)} · ordem geral (OS nova entra no fim)` : `${esc(camp.tipo)} · prazo ${esc(fmtData(camp.fim))}`} · gerado em ${esc(fmtData(hojeISO()))}</p></div>
+      <div class="seq-tit"><small>Sequência de aplicação</small><h2>${esc(camp.nome)}</h2><p>${ehConcl() ? `${esc(camp.tipo)} · consulta (ordem de cada campanha)` : ehTodas() ? `${esc(camp.tipo)} · ordem geral (OS nova entra no fim)` : `${esc(camp.tipo)} · prazo ${esc(fmtData(camp.fim))}`} · gerado em ${esc(fmtData(hojeISO()))}</p></div>
       <div class="seq-nums">
         <div><span>Programado</span><b>${esc(fmtHa(T.plan, 2))}</b></div>
         <div><span>Aplicado</span><b class="txt-ok">${esc(fmtHa(T.apl, 2))}</b></div>
