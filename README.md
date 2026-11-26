@@ -157,6 +157,14 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Acesso restrito (v1.8.0)
+
+- Sem login o app não mostra nada: abre a tela "Acesso restrito" com e-mail e senha. Nenhum dado da nuvem fica no aparelho de quem não entrou.
+- Só lê os dados quem o Gestor liberou em "Usuários e perfis" (Gestor, Líder ou Visualizador). Conta criada sem liberação vê "ainda não foi liberado" e nada mais.
+- No banco: a leitura pública foi retirada; a tabela só é lida por conta logada, com e-mail confirmado e liberada (`meu_papel()` devolve `sem_acesso` para as demais). Banco já existente: rodar `supabase/atualizacao-v1.8.0-acesso-restrito.sql` no SQL Editor depois de publicar esta versão.
+- Sair, ou perder a liberação, apaga a cópia dos dados da nuvem guardada no aparelho.
+- Recomendado no Supabase: desligar o cadastro livre de contas (Authentication → Sign In / Providers → "Allow new users to sign up").
+
 ## Diário: adicionar observação (v1.7.38)
 
 - Cartão Observações ganha "Adicionar observação" (Gestor e Líder): escolhe os drones e escreve o texto (anomalias, ocorrências). Grava num voo de cada drone do dia, de preferência um sem texto digitado, mantendo as notas automáticas. Aparece no Diário, na imagem, no PDF e no Excel; edita e exclui como as demais. Registro no Histórico.

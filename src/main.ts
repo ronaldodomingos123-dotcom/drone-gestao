@@ -1,7 +1,7 @@
 import './styles.css';
 import { atualizarDataset, carregarEstado, redesenhar, repo } from './state';
-import { iniciarNuvem } from './data/nuvem';
-import { atualizarFaixa, iniciarNuvemUI } from './modules/nuvemUI';
+import { aoMudarNuvem, iniciarNuvem, nuvem, temAcesso } from './data/nuvem';
+import { atualizarFaixa, iniciarNuvemUI, renderBloqueio } from './modules/nuvemUI';
 import { limparGraficos } from './ui/charts';
 import { esc, toast } from './ui/dom';
 import { icone } from './ui/icons';
@@ -133,6 +133,15 @@ function navegar() {
   const pagina = document.createElement('div');
   pagina.className = 'pagina';
   main.replaceChildren(pagina);
+  const bloqueado = nuvem.modo !== 'local' && !temAcesso();
+  document.body.classList.toggle('acesso-bloqueado', bloqueado);
+  if (bloqueado) {
+    (document.getElementById('topo-grupo') as HTMLElement).textContent = '';
+    (document.getElementById('topo-titulo') as HTMLElement).textContent = 'Acesso restrito';
+    document.title = 'Acesso restrito · Gestão de Aplicações';
+    renderBloqueio(pagina, navegar);
+    return;
+  }
   try {
     mod.render(pagina);
   } catch (err) {
@@ -198,6 +207,9 @@ function iniciar() {
   window.addEventListener('error', (e) => toast(`Erro inesperado: ${e.message}`, 'erro'));
   iniciarNuvem({ atual: () => estado.ds, aplicar: atualizarDataset, salvarLocal: (ds) => repo.salvarLocal(ds), redesenhar, toast });
   iniciarNuvemUI();
+  // entrou/saiu/perdeu acesso: troca entre a tela de acesso e o app
+  let tinhaAcesso = nuvem.modo === 'local' || temAcesso();
+  aoMudarNuvem(() => { const t = nuvem.modo === 'local' || temAcesso(); if (t !== tinhaAcesso) { tinhaAcesso = t; navegar(); } });
   navegar();
 }
 

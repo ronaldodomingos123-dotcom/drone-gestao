@@ -6,7 +6,7 @@ import { alterar, estado, redesenhar } from '../state';
 import { recuperarVoos, voosAusentes } from '../domain/recuperar';
 import type { Dataset, Operacao } from '../domain/types';
 import {
-  aoMudarNuvem, atualizarPerfil, definirModoLocal, ehGestor, enviar, enviarBaseInicial, metaNuvem, mostrarAtualizacao, nuvem, puxar,
+  aoMudarNuvem, apagarCopiaDaNuvem, atualizarPerfil, definirModoLocal, ehGestor, enviar, enviarBaseInicial, metaNuvem, mostrarAtualizacao, nuvem, puxar,
   type Papel,
 } from '../data/nuvem';
 import { criarConta, entrar, esqueciSenha, lerRetornoDoEmail, NUVEM, rpc, sair, semLogin, trocarSenha } from '../data/supabase';
@@ -15,7 +15,7 @@ import { abrirModal, confirmar, esc, toast } from '../ui/dom';
 import { aviso } from '../ui/components';
 import { icone } from '../ui/icons';
 
-const ROT_PAPEL: Record<Papel, string> = { anonimo: 'Visitante (sem login)', visualizador: 'Visualizador', lider: 'Líder', gestor: 'Gestor' };
+const ROT_PAPEL: Record<Papel, string> = { anonimo: 'Visitante (sem login)', sem_acesso: 'Sem acesso liberado', visualizador: 'Visualizador', lider: 'Líder', gestor: 'Gestor' };
 const hora = (iso: string) => { if (!iso) return ''; const d = new Date(iso); return Number.isNaN(+d) ? '' : `${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`; };
 
 function textoChip(): { txt: string; cls: string } {
@@ -28,6 +28,7 @@ function textoChip(): { txt: string; cls: string } {
     case 'offline': return { txt: metaNuvem().pendente ? 'Sem internet · alterações aguardando' : 'Sem internet', cls: 'nv-aviso' };
     case 'vazia': return { txt: 'Nuvem sem dados', cls: 'nv-aviso' };
     case 'erro': return { txt: 'Erro na nuvem', cls: 'nv-erro' };
+    case 'bloqueado': return { txt: 'Acesso restrito', cls: 'nv-aviso' };
     default: return { txt: 'Sincronizado', cls: 'nv-ok' };
   }
 }
@@ -128,7 +129,7 @@ function secaoStatus(): string {
     <div class="chips-info"><span>Situação <b class="${c.cls}">${esc(c.txt)}</b></span><span>Versão na nuvem <b>${nuvem.versao}</b></span>${nuvem.atualizadoEm ? `<span>Última gravação <b>${esc(hora(nuvem.atualizadoEm))}</b>${nuvem.atualizadoPor ? ` por ${esc(nuvem.atualizadoPor)}` : ''}</span>` : ''}${mt.pendente ? '<span><b>Há alterações deste aparelho aguardando envio</b></span>' : ''}</div>
     ${nuvem.erro ? aviso('critico', esc(nuvem.erro)) : ''}
     <div class="np-acoes"><button class="btn btn-sec btn-peq" data-np-st="sync">${icone('restaurar', 14)} Sincronizar agora</button>${nuvem.atualizacaoAdiada ? `<button class="btn btn-pri btn-peq" data-np-st="mostrar">Mostrar atualização</button>` : ''}</div>
-    <p class="nota">Endereço do projeto: <code>${esc(NUVEM.url)}</code>. Quem tem o link do app vê os dados; para gravar é preciso entrar como Líder ou Gestor.</p></section>`;
+    <p class="nota">Endereço do projeto: <code>${esc(NUVEM.url)}</code>. Só quem entra com e-mail liberado pelo Gestor vê os dados; para gravar é preciso ser Líder ou Gestor.</p></section>`;
 }
 
 function ligarStatus(host: HTMLElement) {
@@ -148,13 +149,14 @@ function corpoPainel(): string {
 
   const conta = nuvem.papel === 'anonimo'
     ? `<section class="np-sec"><h3 class="sec-tit">${icone('pessoa', 16)} Entrar</h3>
-        <p class="nota">Sem login você <b>só vê</b>. Líderes e Gestores entram com o e-mail e a senha que o Gestor criou. Não tem conta? Peça ao Gestor.</p>
+        <p class="nota">Sem login você <b>não vê os dados</b>. Entre com o e-mail e a senha que o Gestor criou. Não tem conta? Peça ao Gestor.</p>
         <div class="form-grade"><label class="campo"><span>E-mail</span><input type="email" data-np-email autocomplete="username" inputmode="email"></label>
         <label class="campo"><span>Senha</span><input type="password" data-np-senha autocomplete="current-password"></label></div>
         <div class="np-acoes"><button class="btn btn-pri" data-np="entrar">${icone('ok', 15)} Entrar</button><button class="link" data-np="esqueci">Esqueci a senha</button></div>
         <div data-np-msg></div></section>`
     : `<section class="np-sec"><h3 class="sec-tit">${icone('pessoa', 16)} Sua conta</h3>
         <div class="chips-info"><span>E-mail <b>${esc(nuvem.email)}</b></span><span>Perfil <b>${esc(ROT_PAPEL[nuvem.papel])}</b></span></div>
+        ${nuvem.papel === 'sem_acesso' ? aviso('atencao', 'Seu e-mail <b>ainda não foi liberado</b> pelo Gestor: até lá você não vê os dados. Peça ao Gestor para liberar em <b>Nuvem e acesso → Usuários e perfis</b>. Se acabou de criar a conta, confirme o e-mail pelo link recebido. Depois clique em "Atualizar perfil".') : ''}
         ${nuvem.papel === 'visualizador' ? aviso('info', 'Seu perfil é <b>Visualizador</b> (só leitura). Se você deveria lançar, peça ao Gestor para liberar seu e-mail como Líder. Se acabou de criar a conta, confirme o e-mail pelo link recebido e clique em "Atualizar perfil".') : ''}
         <div class="np-acoes"><button class="btn btn-sec btn-peq" data-np="perfil">Atualizar perfil</button><button class="btn btn-sec btn-peq" data-np="senha">Trocar senha</button><button class="btn btn-sec btn-peq" data-np="sair">Sair</button></div><div data-np-msg></div></section>`;
 
@@ -168,7 +170,7 @@ function corpoPainel(): string {
 
   const gestor = nuvem.papel === 'gestor'
     ? `<section class="np-sec"><h3 class="sec-tit">${icone('clientes', 16)} Usuários e perfis</h3>
-        <p class="nota"><b>1.</b> Libere aqui o e-mail com o perfil. <b>2.</b> No painel do Supabase: <b>Authentication → Users → Add user → Create new user</b>, com o mesmo e-mail, uma senha provisória e <b>Auto Confirm User</b> marcado. <b>3.</b> Passe a senha à pessoa; ela entra e troca em "Trocar senha".<br><b>Líder</b>: lança o dia a dia (fechamento, dias parados, OS, estações). <b>Gestor</b>: tudo, inclusive campanhas, metas, safra, cadastros e usuários. <b>Visualizador</b>: só vê (igual a quem não entra).</p>
+        <p class="nota"><b>1.</b> Libere aqui o e-mail com o perfil. <b>2.</b> No painel do Supabase: <b>Authentication → Users → Add user → Create new user</b>, com o mesmo e-mail, uma senha provisória e <b>Auto Confirm User</b> marcado. <b>3.</b> Passe a senha à pessoa; ela entra e troca em "Trocar senha".<br><b>Líder</b>: lança o dia a dia (fechamento, dias parados, OS, estações). <b>Gestor</b>: tudo, inclusive campanhas, metas, safra, cadastros e usuários. <b>Visualizador</b>: só vê. Quem não entra, ou entra sem ser liberado aqui, <b>não vê nada</b>. Para tirar o acesso de alguém, use Remover.</p>
         <div class="form-grade compacta"><label class="campo"><span>E-mail</span><input type="email" data-np-novo-email inputmode="email"></label>
         <label class="campo"><span>Perfil</span><select data-np-novo-papel><option value="lider">Líder</option><option value="gestor">Gestor</option><option value="visualizador">Visualizador</option></select></label>
         <div class="campo"><span>&nbsp;</span><button class="btn btn-pri" data-np="liberar">Liberar acesso</button></div></div>
@@ -188,7 +190,7 @@ function corpoPainel(): string {
     : '';
 
   const teste = `<section class="np-sec"><h3 class="sec-tit">${icone('alerta', 16)} Teste de segurança</h3>
-    <p class="nota">Tenta, <b>sem login</b>, gravar, alterar, apagar e ver usuários no seu projeto. Todas as tentativas precisam ser <b>recusadas</b> pela nuvem; só a leitura dos dados pode passar.</p>
+    <p class="nota">Tenta, <b>sem login</b>, ler, gravar, alterar, apagar e ver usuários no seu projeto. Todas as tentativas precisam ser <b>recusadas</b> pela nuvem.</p>
     <button class="btn btn-sec btn-peq" data-np="teste">Testar segurança da nuvem</button><div data-np-teste></div></section>`;
 
   const local = `<p class="nota np-local"><button class="link" data-np="modo-local">Usar só neste aparelho (modo local, sem nuvem)</button></p>`;
@@ -220,10 +222,13 @@ function ligarPainel(host: HTMLElement, desenhar: () => void) {
           msg(aviso('info', 'Se o e-mail puder receber mensagens do projeto, chega um link para criar nova senha. Se não chegar em alguns minutos, peça ao Gestor para recriar sua conta com uma senha provisória.')); break;
         case 'perfil': await atualizarPerfil(); desenhar(); break;
         case 'senha': abrirNovaSenha(); break;
-        case 'sair': await sair(); await atualizarPerfil(); desenhar(); toast('Você saiu. O app fica só para leitura.', 'info'); break;
+        case 'sair': {
+          if (metaNuvem().pendente && !(await confirmar('Sair com alterações não enviadas', 'Este aparelho tem alterações que ainda não subiram para a nuvem. Ao sair, a cópia dos dados deste aparelho é apagada e essas alterações se perdem. Sair mesmo assim?', 'Sair e apagar'))) return;
+          await sair(); apagarCopiaDaNuvem(); location.reload(); break;
+        }
         case 'enviar-base': {
           const demo = estado.ds.origemBase !== 'propria';
-          if (!(await confirmar('Primeiro envio para a nuvem', `Enviar os dados deste aparelho (${estado.ds.ordens.length} OS, ${estado.ds.operacoes.length} voos${demo ? ', DADOS DE DEMONSTRAÇÃO' : ''}) para a nuvem?\nA partir daí, todos com o link passam a ver estes dados.`, 'Enviar'))) return;
+          if (!(await confirmar('Primeiro envio para a nuvem', `Enviar os dados deste aparelho (${estado.ds.ordens.length} OS, ${estado.ds.operacoes.length} voos${demo ? ', DADOS DE DEMONSTRAÇÃO' : ''}) para a nuvem?\nA partir daí, os usuários liberados passam a ver estes dados.`, 'Enviar'))) return;
           const erro = await enviarBaseInicial();
           const el = host.querySelector('[data-np-envio]') as HTMLElement | null;
           if (erro) { if (el) el.innerHTML = aviso('critico', esc(erro)); } else { toast('Dados enviados. A nuvem está ativa.', 'ok'); desenhar(); redesenhar(); }
@@ -293,7 +298,7 @@ export async function testeSeguranca(host: HTMLElement) {
   el.innerHTML = '<p class="nota">Testando…</p>';
   const recusou = (r: { status: number; corpo: unknown }) => r.status >= 400 || (Array.isArray(r.corpo) && r.corpo.length === 0);
   const casos: { nome: string; deve: 'ler' | 'recusar'; f: () => Promise<{ status: number; corpo: unknown }> }[] = [
-    { nome: 'Ler os dados (permitido)', deve: 'ler', f: () => semLogin('/rest/v1/dataset?id=eq.1&select=versao') },
+    { nome: 'Ler os dados', deve: 'recusar', f: () => semLogin('/rest/v1/dataset?id=eq.1&select=versao') },
     { nome: 'Gravar pela função salvar_dataset', deve: 'recusar', f: () => semLogin('/rest/v1/rpc/salvar_dataset', { method: 'POST', body: JSON.stringify({ p_dados: { operacoes: [] }, p_versao_base: nuvem.versao }) }) },
     { nome: 'Alterar a tabela de dados', deve: 'recusar', f: () => semLogin('/rest/v1/dataset?id=eq.1', { method: 'PATCH', body: JSON.stringify({ versao: 999999 }) }) },
     { nome: 'Apagar os dados', deve: 'recusar', f: () => semLogin('/rest/v1/dataset?id=eq.1', { method: 'DELETE' }) },
@@ -359,3 +364,47 @@ async function abrirRecuperar(id: number, versao: number) {
   });
 }
 const fmtDataBR = (d: string) => d.split('-').reverse().join('/');
+
+// ---------------------------------------------------------------------------------------------------
+/** Tela que substitui o app quando não há acesso: sem login (pede e-mail e senha) ou login sem liberação. */
+export function renderBloqueio(el: HTMLElement, aoEntrar: () => void) {
+  const semAcesso = nuvem.papel === 'sem_acesso';
+  el.innerHTML = `<section class="cartao bloqueio">
+    <div class="bloqueio-ico">${icone('camadas', 28)}</div>
+    <h1>Acesso restrito</h1>
+    ${semAcesso
+      ? `<p>Você entrou como <b>${esc(nuvem.email)}</b>, mas este e-mail <b>ainda não foi liberado</b> pelo Gestor. Peça para ele liberar em <b>Nuvem e acesso → Usuários e perfis</b>. Se acabou de criar a conta, confirme o e-mail pelo link recebido.</p>
+         <div class="np-acoes"><button class="btn btn-pri" data-bq="verificar">Verificar de novo</button><button class="btn btn-sec" data-bq="sair">Sair</button></div>`
+      : `<p>Os dados deste app só aparecem para quem entra com o e-mail liberado pelo Gestor.</p>
+         <div class="form-grade"><label class="campo"><span>E-mail</span><input type="email" data-bq-email autocomplete="username" inputmode="email"></label>
+         <label class="campo"><span>Senha</span><input type="password" data-bq-senha autocomplete="current-password"></label></div>
+         <div class="np-acoes"><button class="btn btn-pri" data-bq="entrar">${icone('ok', 15)} Entrar</button><button class="link" data-bq="esqueci">Esqueci a senha</button></div>`}
+    <div data-bq-msg></div>
+    <p class="nota">Não tem acesso? Fale com o Gestor do app.</p>
+  </section>`;
+  const msg = (h: string) => { (el.querySelector('[data-bq-msg]') as HTMLElement).innerHTML = h; };
+  const val = (s: string) => (el.querySelector(s) as HTMLInputElement | null)?.value.trim() ?? '';
+  el.querySelector('[data-bq-senha]')?.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Enter') (el.querySelector('[data-bq="entrar"]') as HTMLButtonElement)?.click(); });
+  el.querySelectorAll<HTMLButtonElement>('[data-bq]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try {
+      switch (b.dataset.bq) {
+        case 'entrar':
+          if (!val('[data-bq-email]') || !val('[data-bq-senha]')) { msg(aviso('atencao', 'Digite o e-mail e a senha.')); return; }
+          await entrar(val('[data-bq-email]'), val('[data-bq-senha]'));
+          await atualizarPerfil();
+          if (nuvem.papel === 'gestor' || nuvem.papel === 'lider' || nuvem.papel === 'visualizador') { await puxar(true); toast(`Você entrou como ${ROT_PAPEL[nuvem.papel]}.`, 'ok'); }
+          aoEntrar(); break;
+        case 'esqueci':
+          if (!val('[data-bq-email]')) { msg(aviso('atencao', 'Digite o e-mail e clique de novo em "Esqueci a senha".')); return; }
+          await esqueciSenha(val('[data-bq-email]'));
+          msg(aviso('info', 'Se o e-mail puder receber mensagens do projeto, chega um link para criar nova senha. Se não chegar, peça ao Gestor uma senha provisória.')); break;
+        case 'verificar':
+          await atualizarPerfil();
+          if (nuvem.papel === 'gestor' || nuvem.papel === 'lider' || nuvem.papel === 'visualizador') await puxar(true);
+          aoEntrar(); break;
+        case 'sair': await sair(); apagarCopiaDaNuvem(); location.reload(); break;
+      }
+    } catch (e) { msg(aviso('critico', esc((e as Error).message))); } finally { b.disabled = false; }
+  }));
+}

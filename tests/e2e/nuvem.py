@@ -1,7 +1,8 @@
 """Fase 4 — dados na nuvem, com as regras REAIS do banco (supabase/schema.sql num PostgreSQL local; só o login
 e o gateway HTTP são simulados em nuvem_shim.py).
 
-Cenário: o Gestor (aparelho A) envia a base; um visitante sem login (aparelho B) vê tudo mas não grava; o
+Cenário: sem login o app fica bloqueado (tela "Acesso restrito", nada da nuvem no aparelho); o Gestor (aparelho A)
+entra e envia a base; o visitante sem login (aparelho B) não vê nada; conta criada sem liberação também não; o
 Gestor libera um Líder; B cria a conta, confirma e lança; A recebe sozinho; o Líder não altera a safra; A
 lança SEM INTERNET enquanto B lança — ao voltar a conexão as duas alterações se juntam; teste de segurança
 sem login; restauração de versão chega aos dois; modo local não envia nada."""
@@ -13,7 +14,7 @@ from nuvem_shim import Banco
 URL = pathlib.Path('dist/index.html').resolve().as_uri()
 SHOTS = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else None
 res = []
-def ok(n, c): res.append(('PASSOU' if c else 'FALHOU', n)); return c
+def ok(n, c): res.append(('PASSOU' if c else 'FALHOU', n)); print(res[-1][0], n, flush=True); return c
 
 SEED = open(pathlib.Path(__file__).parent / 'dias.py').read()
 SEED = SEED[SEED.index('        pg.evaluate("""() => {') + len('        pg.evaluate("""'):SEED.index('}""")', SEED.index('pg.evaluate("""() => {')) + 1]
@@ -40,7 +41,7 @@ def novo(b, p, nome, intervalo=1500, vp=None, semente=None):
     ctx.add_init_script(f"try {{ localStorage.setItem('dap-proto-v1:nuvem-intervalo', '{intervalo}') }} catch (e) {{}}")
     if semente:  # base própria deste aparelho, gravada antes do app abrir (só na 1ª abertura)
         ctx.add_init_script("try { if (!localStorage.getItem('semente-ok')) { localStorage.setItem('dap-proto-v1:dataset', " + json.dumps(semente) + "); localStorage.setItem('semente-ok', '1'); } } catch (e) {}")
-    pg = ctx.new_page(); pg.erros = []; pg.on('pageerror', lambda e: pg.erros.append(str(e)))
+    pg = ctx.new_page(); pg.set_default_timeout(8000); pg.erros = []; pg.on('pageerror', lambda e: pg.erros.append(str(e)))
     pg.goto(URL + '#/dashboard'); pg.wait_for_selector('[data-nuvem-chip]')
     return ctx, pg
 
@@ -74,14 +75,17 @@ try:
         ctx0 = p.chromium.launch().new_context(); P0 = ctx0.new_page(); P0.goto(URL + '?modo=local#/dashboard'); P0.wait_for_selector('.destaque-valor')
         semente = P0.evaluate(SEED.replace("localStorage.setItem(k, JSON.stringify(d));", "return JSON.stringify(d);")); ctx0.close()
         ctxA, A = novo(b, p, 'A', semente=semente)
-        A.wait_for_function("document.querySelector('.destaque-valor') && document.querySelector('.destaque-valor').innerText.includes('200,0')")
-        ok('A sem login: chip mostra "Nuvem sem dados" e "Entrar"', esperar(A, lambda: 'Nuvem sem dados' in A.inner_text('[data-nuvem-chip]') and 'Entrar' in A.inner_text('[data-nuvem-chip]')))
-        t = dia_parado(A, '2026-10-21', 'Chuva')
-        ok('A sem login: gravar é recusado (somente leitura)', 'Somente leitura' in t and not (ds_local(A).get('diasParados') or []))
-        entrar(A, 'gestor@teste.local', 'errada')
-        ok('senha errada: mensagem clara', esperar(A, lambda: 'E-mail ou senha incorretos' in A.inner_text('[data-nuvem-painel]')))
-        entrar(A, 'gestor@teste.local', 'senhaGestor1')
-        ok('A entra como Gestor', esperar(A, lambda: 'Gestor' in A.inner_text('[data-nuvem-chip]') and 'Primeiro envio' in A.inner_text('[data-nuvem-painel]')))
+        ok('A sem login: app bloqueado (tela "Acesso restrito", sem menu, sem painel)', esperar(A, lambda: A.locator('.bloqueio').count() == 1 and 'Acesso restrito' in A.inner_text('#conteudo') and not A.locator('.destaque-valor').count() and not A.locator('.lateral nav').is_visible()))
+        A.goto(URL + '#/fechamento'); A.wait_for_timeout(300)
+        ok('A sem login: outras telas também ficam bloqueadas', A.locator('.bloqueio').count() == 1 and not A.locator('[data-acao="dia-parado"]').count())
+        A.fill('[data-bq-email]', 'gestor@teste.local'); A.fill('[data-bq-senha]', 'errada'); A.click('[data-bq="entrar"]')
+        ok('senha errada: mensagem clara', esperar(A, lambda: 'E-mail ou senha incorretos' in A.inner_text('.bloqueio')))
+        A.fill('[data-bq-senha]', 'senhaGestor1'); A.click('[data-bq="entrar"]')
+        ok('A entra como Gestor pela tela de acesso e o app abre', esperar(A, lambda: 'Gestor' in A.inner_text('[data-nuvem-chip]') and not A.locator('.bloqueio').count()))
+        A.goto(URL + '#/dashboard')
+        ok('A: depois de entrar, vê a base do aparelho (200,0 ha)', esperar(A, lambda: '200,0' in A.inner_text('.destaque-valor')))
+        painel(A)
+        ok('painel oferece o primeiro envio', esperar(A, lambda: 'Primeiro envio' in A.inner_text('[data-nuvem-painel]')))
         ok('painel mostra a base deste aparelho (2 voos, própria)', 'própria' in A.inner_text('[data-nuvem-painel]') and 'Voos 2' in A.inner_text('[data-nuvem-painel]').replace('\n', ' '))
         A.click('[data-np="enviar-base"]'); A.locator('[data-ok]').last.click()
         ok('primeiro envio: nuvem na versão 1 com os 2 voos', esperar(A, lambda: versao(b) == 1) and len(dados(b)['operacoes']) == 2)
@@ -89,15 +93,12 @@ try:
         if SHOTS: A.screenshot(path=str(SHOTS / 'nuvem-A-painel.png'))
         fechar_modais(A)
 
-        # ---------------- B: visitante sem login vê tudo
+        # ---------------- B: visitante sem login NÃO vê nada
         ctxB, B = novo(b, p, 'B', vp={'width': 390, 'height': 844})
-        ok('B sem login recebe os dados da nuvem (faixa "Dados da nuvem", 2 voos)', esperar(B, lambda: 'Dados da nuvem' in B.inner_text('.faixa-demo') and len(ds_local(B)['operacoes']) == 2))
-        ok('B: painel mostra 200,0 ha', esperar(B, lambda: '200,0' in B.inner_text('.destaque-valor')))
-        ok('B: faixa avisa "somente leitura"', 'somente leitura' in B.inner_text('.faixa-demo'))
+        B.wait_for_timeout(3000)
+        ok('B sem login: tela "Acesso restrito" e nenhum dado da nuvem no aparelho', B.locator('.bloqueio').count() == 1 and len((ds_local(B) or {}).get('operacoes') or []) != 2 and not any(o.get('id') in ('op1', 'op2') for o in ((ds_local(B) or {}).get('operacoes') or [])))
         ok('B no celular sem login: o botão do topo mostra "Entrar"', B.locator('[data-nuvem-chip] em').is_visible() and 'Entrar' in B.inner_text('[data-nuvem-chip]'))
-        t = dia_parado(B, '2026-10-21', 'Chuva')
-        ok('B sem login: gravar é recusado', 'Somente leitura' in t and versao(b) == 1)
-        if SHOTS: B.screenshot(path=str(SHOTS / 'nuvem-B-leitura.png'))
+        if SHOTS: B.screenshot(path=str(SHOTS / 'nuvem-B-bloqueado.png'))
 
         # ---------------- Gestor libera o Líder; B cria a conta e confirma
         m = painel(A)
@@ -111,7 +112,9 @@ try:
         ok('sem confirmar o e-mail: não entra', esperar(B, lambda: 'Confirme o e-mail' in B.inner_text('[data-nuvem-painel]')))
         b.confirmar('lider@teste.local')   # Auto Confirm
         entrar(B, 'lider@teste.local', 'senhaLider1')
-        ok('após confirmar: B entra como Líder (senha provisória)', esperar(B, lambda: 'Líder' in B.inner_text('[data-nuvem-painel]') and 'Sua conta' in B.inner_text('[data-nuvem-painel]')))
+        ok('B liberado: o app abre e recebe os 2 voos', esperar(B, lambda: not B.locator('.bloqueio').count() and len(ds_local(B)['operacoes']) == 2))
+        painel(B)
+        ok('após confirmar: painel do Líder mostra a conta (senha provisória)', esperar(B, lambda: 'Líder' in B.inner_text('[data-nuvem-painel]') and 'Sua conta' in B.inner_text('[data-nuvem-painel]')))
         B.click('[data-np="senha"]'); B.fill('[data-ns]', 'novaSenha99'); B.click('[data-ns-ok]')
         ok('Líder troca a senha provisória', esperar(B, lambda: b.senhas['lider@teste.local'][1] == 'novaSenha99'))
         fechar_modais(B)
@@ -169,6 +172,18 @@ try:
         ok('B recebe o voo recuperado', esperar(B, lambda: len(ds_local(B)['operacoes']) == 2, 12000))
         ok('auditoria registra a recuperação', any('Recuperados 1 voo' in a['resumo'] for a in dados(b)['auditoria']))
         fechar_modais(A)
+
+        # ---------------- Conta criada mas NÃO liberada pelo Gestor: não vê nada
+        b.criar_usuario('curioso@teste.local', 'senhaCurioso1')
+        ctxD, D = novo(b, p, 'D')
+        D.fill('[data-bq-email]', 'curioso@teste.local'); D.fill('[data-bq-senha]', 'senhaCurioso1'); D.click('[data-bq="entrar"]')
+        ok('conta sem liberação: entra, mas vê "ainda não foi liberado" e nenhum dado', esperar(D, lambda: 'ainda não foi liberado' in D.inner_text('.bloqueio')) and not any(o.get('id') in ('op1', 'op2') for o in ((ds_local(D) or {}).get('operacoes') or [])))
+        ok('lista de usuários do Gestor mostra o e-mail como sem acesso', esperar(A, lambda: (fechar_modais(A), painel(A), 'curioso@teste.local' in A.inner_text('[data-np-usuarios]'))[2]))
+        fechar_modais(A); ctxD.close()
+
+        # ---------------- Sair apaga a cópia deste aparelho
+        m = painel(B); m.locator('[data-np="sair"]').click()
+        ok('B sai: volta a tela de acesso e a cópia dos dados some do aparelho', esperar(B, lambda: B.locator('.bloqueio').count() == 1 and not any(o.get('id') in ('op1', 'op2') for o in ((ds_local(B) or {}).get('operacoes') or [])) and not B.evaluate("localStorage.getItem('dap-proto-v1:nuvem-base')")))
 
         # ---------------- Modo local: nada vai para a nuvem
         ctxC = p.chromium.launch().new_context(); b.ligar(ctxC); C = ctxC.new_page()

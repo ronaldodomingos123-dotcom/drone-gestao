@@ -40,7 +40,7 @@ insert into auth.users (id, email, email_confirmed_at) values
 
 -- SEM LOGIN
 select _tentar('sem login: papel = anonimo', 'anon', null, 'select public.meu_papel()', 'anonimo');
-select _tentar('sem login: LÊ os dados', 'anon', null, 'select versao::text from public.dataset', '0');
+select _tentar('sem login: NÃO lê os dados', 'anon', null, 'select versao::text from public.dataset', 'ERRO');
 select _tentar('sem login: NÃO grava pela função', 'anon', null, format('select public.salvar_dataset(%L::jsonb, 0)', :D0), 'ERRO');
 select _tentar('sem login: NÃO altera a tabela', 'anon', null, 'update public.dataset set versao = 99 returning 1', 'ERRO');
 select _tentar('sem login: NÃO apaga', 'anon', null, 'delete from public.dataset returning 1', 'ERRO');
@@ -53,19 +53,22 @@ select _tentar('sem login: NÃO se dá papel', 'anon', null, $q$select public.de
 
 -- PAPÉIS
 select _tentar('gestor do script: papel = gestor', 'authenticated', :G, 'select public.meu_papel()', 'gestor');
-select _tentar('conta sem convite: papel = visualizador', 'authenticated', :L, 'select public.meu_papel()', 'visualizador');
+select _tentar('conta sem convite: papel = sem_acesso', 'authenticated', :L, 'select public.meu_papel()', 'sem_acesso');
+select _tentar('conta sem convite: NÃO lê os dados (nenhuma linha)', 'authenticated', :L, 'select count(*)::text from public.dataset', '0');
 select _tentar('sem convite: NÃO grava', 'authenticated', :L, format('select public.salvar_dataset(%L::jsonb, 0)', :D0), 'ERRO');
 select _tentar('gestor convida o líder', 'authenticated', :G, $q$select public.definir_papel('LIDER@teste.local', 'lider')::text$q$, '%"ok": true%');
 select _tentar('líder: papel = lider', 'authenticated', :L, 'select public.meu_papel()', 'lider');
 select _tentar('gestor dá papel de líder a um e-mail', 'authenticated', :G, $q$select public.definir_papel('falso@teste.local', 'lider')::text$q$, '%"ok": true%');
-select _tentar('e-mail NÃO confirmado com convite: papel = visualizador', 'authenticated', :F, 'select public.meu_papel()', 'visualizador');
+select _tentar('e-mail NÃO confirmado com convite: papel = sem_acesso', 'authenticated', :F, 'select public.meu_papel()', 'sem_acesso');
+select _tentar('e-mail NÃO confirmado: NÃO lê os dados', 'authenticated', :F, 'select count(*)::text from public.dataset', '0');
 select _tentar('e-mail NÃO confirmado: NÃO grava', 'authenticated', :F, format('select public.salvar_dataset(%L::jsonb, 0)', :D0), 'ERRO');
 
 -- GRAVAÇÃO
 select _tentar('líder: primeiro envio é só do gestor', 'authenticated', :L, format('select public.salvar_dataset(%L::jsonb, 0)', :D0), 'ERRO');
 select _tentar('gestor envia os dados (versão 1)', 'authenticated', :G, format('select public.salvar_dataset(%L::jsonb, 0)::text', :D0), '%"versao": 1%');
 select _tentar('versão-base antiga = conflito (não sobrescreve)', 'authenticated', :G, format('select public.salvar_dataset(%L::jsonb, 0)::text', :D1), '%"conflito": true%');
-select _tentar('dados continuam na versão 1 após o conflito', 'anon', null, 'select versao::text from public.dataset', '1');
+select _tentar('dados continuam na versão 1 após o conflito', 'authenticated', :G, 'select versao::text from public.dataset', '1');
+select _tentar('líder LÊ os dados', 'authenticated', :L, 'select versao::text from public.dataset', '1');
 select _tentar('líder grava operação (versão 2)', 'authenticated', :L, format('select public.salvar_dataset(%L::jsonb, 1)::text', :D1), '%"versao": 2%');
 select _tentar('líder NÃO altera metas', 'authenticated', :L, format('select public.salvar_dataset(%L::jsonb, 2)', :D2m), 'ERRO');
 select _tentar('líder NÃO altera campanhas', 'authenticated', :L, format('select public.salvar_dataset(%L::jsonb, 2)', :D2c), 'ERRO');
@@ -82,14 +85,18 @@ select _tentar('dados inválidos são recusados', 'authenticated', :G, $q$select
 -- HISTÓRICO, RESTAURAÇÃO, USUÁRIOS
 select id as h1 from public.dataset_historico where versao = 1 \gset
 select _tentar('gestor restaura a versão 1', 'authenticated', :G, format('select public.restaurar_versao(%s)::text', :h1), '%"versao": 4%');
-select _tentar('após restaurar: volta ao 1º envio (0 operações, metas m=1)', 'anon', null,
+select _tentar('após restaurar: volta ao 1º envio (0 operações, metas m=1)', 'authenticated', :G,
   $q$select (jsonb_array_length(dados->'operacoes') || '/' || (dados->'metas'->>'m')) from public.dataset$q$, '0/1');
-select _tentar('"atualizado por" público não expõe o e-mail', 'anon', null, 'select atualizado_por from public.dataset', '%');
+select _tentar('"atualizado por" não expõe o e-mail', 'authenticated', :G, 'select atualizado_por from public.dataset', '%');
 select _tentar('gestor lista usuários', 'authenticated', :G, 'select count(*)::text from public.listar_usuarios()', '4');
 select _tentar('não dá para remover o último gestor', 'authenticated', :G, format('select public.remover_acesso(%L)', :'email'), 'ERRO');
 select _tentar('não dá para rebaixar o último gestor', 'authenticated', :G, format($q$select public.definir_papel(%L, 'lider')$q$, :'email'), 'ERRO');
 select _tentar('gestor remove o acesso do líder', 'authenticated', :G, $q$select public.remover_acesso('lider@teste.local')::text$q$, '%"ok": true%');
-select _tentar('ex-líder vira visualizador e NÃO grava', 'authenticated', :L, format('select public.salvar_dataset(%L::jsonb, 4)', :D3), 'ERRO');
+select _tentar('ex-líder fica sem acesso e NÃO grava', 'authenticated', :L, format('select public.salvar_dataset(%L::jsonb, 4)', :D3), 'ERRO');
+select _tentar('ex-líder: papel = sem_acesso', 'authenticated', :L, 'select public.meu_papel()', 'sem_acesso');
+select _tentar('ex-líder NÃO lê mais os dados', 'authenticated', :L, 'select count(*)::text from public.dataset', '0');
+select _tentar('gestor libera visualizador', 'authenticated', :G, $q$select public.definir_papel('visual@teste.local', 'visualizador')::text$q$, '%"ok": true%');
+select _tentar('visualizador liberado LÊ os dados', 'authenticated', :V, 'select count(*)::text from public.dataset', '1');
 
 select _tentar('sem login: NÃO lê versão anterior', 'anon', null, format('select public.ler_versao(%s)::text', :h1), 'ERRO');
 select _tentar('líder NÃO lê versão anterior', 'authenticated', :L, format('select public.ler_versao(%s)::text', :h1), 'ERRO');

@@ -2,7 +2,8 @@
  * Sincronização com a nuvem (Fase 4).
  *
  * • Este aparelho guarda uma cópia (abre e funciona sem internet).
- * • Ler: qualquer pessoa com o link. Gravar: só Líder/Gestor logado — conferido aqui E no banco.
+ * • Ler: só quem entra com e-mail liberado pelo Gestor (sem login o app fica bloqueado). Gravar: só Líder/Gestor
+ *   — conferido aqui E no banco.
  * • Cada gravação local vai para a nuvem (com a versão-base). Se outra pessoa gravou antes, as duas
  *   versões são mescladas item a item (domain/mesclar.ts) e o envio é refeito — nada é sobrescrito sem aviso.
  * • Sem internet: as alterações ficam pendentes e sobem quando a conexão volta.
@@ -15,8 +16,8 @@ import { iguais, mesclar3 } from '../domain/mesclar';
 import { ganchosNuvem, PREFIXO } from './repository';
 import { ErroNuvem, lerDataset, rpc, sessaoAtual } from './supabase';
 
-export type Papel = 'anonimo' | 'visualizador' | 'lider' | 'gestor';
-export type EstadoSync = 'iniciando' | 'sincronizado' | 'enviando' | 'pendente' | 'offline' | 'vazia' | 'erro' | 'local';
+export type Papel = 'anonimo' | 'sem_acesso' | 'visualizador' | 'lider' | 'gestor';
+export type EstadoSync = 'iniciando' | 'sincronizado' | 'enviando' | 'pendente' | 'offline' | 'vazia' | 'erro' | 'local' | 'bloqueado';
 
 /** Partes que só o Gestor altera (mesma lista do banco, em supabase/schema.sql). */
 export const CHAVES_GESTOR = ['unidades', 'campanhas', 'produtos', 'aeronaves', 'colaboradores', 'turnos', 'limites', 'metas', 'safra', 'origemBase', 'geradoEm'] as const;
@@ -53,6 +54,9 @@ const ler = <T>(k: string): T | null => { try { return JSON.parse(localStorage.g
 const gravar = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sem espaço: fica em memória */ } };
 const gravarMeta = () => gravar(K_META, meta);
 const gravarBase = (d: Dataset | null) => { base = d ? JSON.parse(JSON.stringify(d)) : null; gravar(K_BASE, base); };
+
+/** Pode ver os dados: modo local ou login liberado pelo Gestor (Visualizador, Líder ou Gestor). */
+export const temAcesso = () => nuvem.modo === 'local' || nuvem.papel === 'gestor' || nuvem.papel === 'lider' || nuvem.papel === 'visualizador';
 
 export const podeGravar = () => nuvem.modo === 'local' || nuvem.papel === 'gestor' || nuvem.papel === 'lider';
 export const ehGestor = () => nuvem.modo === 'local' || nuvem.papel === 'gestor';
@@ -141,6 +145,7 @@ export function mostrarAtualizacao() { nuvem.atualizacaoAdiada = false; ponte.re
  */
 export async function puxar(forcar = false, descartarLocal = false): Promise<void> {
   if (nuvem.modo === 'local') return;
+  if (!temAcesso()) { definir('bloqueado'); return; }
   const cab = await lerDataset(false);
   if (!cab) throw new ErroNuvem('A nuvem não respondeu com os dados. Confira se o script do banco foi aplicado.', 500);
   nuvem.versao = cab.versao; nuvem.atualizadoEm = cab.atualizado_em; nuvem.atualizadoPor = cab.atualizado_por ?? '';
@@ -196,16 +201,33 @@ export async function atualizarPerfil() {
     const p = await rpc<{ papel: Papel; email: string | null }>('meu_perfil');
     nuvem.papel = p.papel; nuvem.email = p.email ?? s?.email ?? '';
   } catch (e) {
-    if ((e as ErroNuvem).semRede) { nuvem.papel = s ? (ler<Papel>(`${PREFIXO}nuvem-papel`) ?? 'visualizador') : 'anonimo'; nuvem.email = s?.email ?? ''; }
-    else { nuvem.papel = s ? 'visualizador' : 'anonimo'; nuvem.email = s?.email ?? ''; }
+    if ((e as ErroNuvem).semRede) { nuvem.papel = s ? (ler<Papel>(`${PREFIXO}nuvem-papel`) ?? 'sem_acesso') : 'anonimo'; nuvem.email = s?.email ?? ''; }
+    else { nuvem.papel = s ? 'sem_acesso' : 'anonimo'; nuvem.email = s?.email ?? ''; }
   }
   gravar(`${PREFIXO}nuvem-papel`, nuvem.papel);
   definirUsuarioAtual(nuvem.email ? nuvem.email.split('@')[0] : null);
+  if (!temAcesso()) {
+    definir('bloqueado');
+    // sem acesso: não deixa neste aparelho a cópia dos dados que veio da nuvem (a não ser que haja algo por enviar)
+    if (meta.vinculado && !meta.pendente) { apagarCopiaDaNuvem(); location.reload(); return; }
+  }
   avisar();
+}
+
+/** Apaga deste aparelho a cópia dos dados da nuvem (e cópias de segurança locais). Preferências ficam. */
+export function apagarCopiaDaNuvem() {
+  try {
+    const ks: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && (k.startsWith(`${PREFIXO}dataset`) || k === K_BASE || k === K_META || k === `${PREFIXO}nuvem-papel`)) ks.push(k); }
+    ks.forEach((k) => localStorage.removeItem(k));
+  } catch { /* ignora */ }
+  meta = { versaoBase: 0, pendente: false, vinculado: false }; base = null;
 }
 
 /** Liga/desliga o modo local (sem nuvem). */
 export function definirModoLocal(local: boolean) {
+  // o modo local usa a cópia deste aparelho: se ela veio da nuvem, apaga antes (o modo local não pede login)
+  if (local && nuvem.modo !== 'local' && meta.vinculado) apagarCopiaDaNuvem();
   try { if (local) localStorage.setItem(K_MODO, 'local'); else localStorage.removeItem(K_MODO); } catch { /* ignora */ }
   location.reload();
 }
@@ -213,6 +235,7 @@ export function definirModoLocal(local: boolean) {
 let verificando = false;
 async function verificar() {
   if (verificando || nuvem.modo === 'local' || document.hidden) return;
+  if (!temAcesso()) { definir('bloqueado'); return; }
   verificando = true;
   try {
     if (meta.pendente && podeGravar() && !nuvem.nuvemVazia) await enviar();
@@ -235,6 +258,8 @@ export function iniciarNuvem(p: Ponte, intervaloMs = 10_000) {
   if (modoLocal) { nuvem.modo = 'local'; nuvem.estado = 'local'; avisar(); return; }
   meta = ler<Meta>(K_META) ?? { versaoBase: 0, pendente: false, vinculado: false };
   base = ler<Dataset>(K_BASE);
+  // até a nuvem confirmar o perfil: com sessão neste aparelho, usa o último papel conhecido; sem sessão, bloqueado
+  nuvem.papel = sessaoAtual() ? (ler<Papel>(`${PREFIXO}nuvem-papel`) ?? 'sem_acesso') : 'anonimo';
   ganchosNuvem.antes = conferirPermissao;
   ganchosNuvem.depois = () => { meta.pendente = true; gravarMeta(); definir(navigator.onLine ? 'pendente' : 'offline'); agendarEnvio(); };
   window.addEventListener('online', () => void verificar());

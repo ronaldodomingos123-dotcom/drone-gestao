@@ -5,15 +5,16 @@
 -- Pode rodar de novo sem perder dados (o script só cria o que falta e atualiza as funções).
 --
 -- Regras de acesso garantidas pelo BANCO (não só pelo app):
---   • Sem login (só o link)  → só LÊ os dados. Não grava, não apaga, não vê usuários nem histórico.
---   • Visualizador (login)   → igual a sem login.
+--   • Sem login (só o link)  → NÃO vê nada. Os dados só saem para quem entra com e-mail liberado.
+--   • Conta sem liberação    → igual a sem login (criar conta não dá acesso: o Gestor libera o e-mail).
+--   • Visualizador (login)   → só LÊ os dados.
 --   • Líder (login)          → lê e grava o dia a dia (fechamento, dias parados, OS, fazendas/talhões,
 --                              estações…). NÃO altera campanhas, metas, safra, aeronaves, colaboradores,
 --                              turnos, produtos, unidades, limites, nem troca a base inteira.
 --   • Gestor (login)         → tudo, inclusive usuários, histórico e restauração de versões.
 --   • Toda gravação guarda a versão anterior (últimas 60) e exige a versão-base certa (sem sobrescrever
 --     o trabalho de outra pessoa sem perceber).
---   • Papel só vale para e-mail CONFIRMADO.
+--   • Papel só vale para e-mail CONFIRMADO e LIBERADO pelo Gestor (tabela convites).
 -- =====================================================================================================
 
 -- >>>>>>>>>>>>>>>>>>>>>>>>  GESTOR PRINCIPAL (troque se necessário)  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -54,7 +55,7 @@ create table if not exists public.dataset_historico (
   motivo    text
 );
 
--- RLS ligado em tudo. Só a leitura dos dados tem política; o resto passa pelas funções abaixo.
+-- RLS ligado em tudo. Só a leitura dos dados tem política (e só para quem tem acesso); o resto passa pelas funções abaixo.
 alter table public.convites          enable row level security;
 alter table public.perfis            enable row level security;
 alter table public.dataset           enable row level security;
@@ -62,31 +63,36 @@ alter table public.dataset_historico enable row level security;
 
 revoke all on public.convites, public.perfis, public.dataset, public.dataset_historico from anon, authenticated;
 revoke all on sequence public.dataset_historico_id_seq from anon, authenticated;
-grant select on public.dataset to anon, authenticated;
+grant select on public.dataset to authenticated;
 
 drop policy if exists "dados: leitura publica" on public.dataset;
-create policy "dados: leitura publica" on public.dataset for select to anon, authenticated using (true);
 
 -- ------------------------------------------------------------------------------------------------
--- Papel do usuário que fez a chamada ('anonimo' sem login; e-mail não confirmado = visualizador)
+-- Papel do usuário que fez a chamada: 'anonimo' sem login; 'sem_acesso' com login mas sem liberação do
+-- Gestor (ou e-mail não confirmado); senão o papel liberado (gestor, lider, visualizador).
 -- ------------------------------------------------------------------------------------------------
 create or replace function public.meu_papel() returns text
 language sql stable security definer set search_path = public as $$
   select case
     when auth.uid() is null then 'anonimo'
     else coalesce((
-      select p.papel from public.perfis p join auth.users u on u.id = p.user_id
-      where p.user_id = auth.uid() and u.email_confirmed_at is not null
-    ), 'visualizador')
+      select c.papel from public.convites c join auth.users u on lower(u.email) = c.email
+      where u.id = auth.uid() and u.email_confirmed_at is not null
+    ), 'sem_acesso')
   end
 $$;
+
+-- Leitura dos dados: só quem tem acesso liberado
+drop policy if exists "dados: leitura com acesso" on public.dataset;
+create policy "dados: leitura com acesso" on public.dataset for select to authenticated
+  using (public.meu_papel() in ('gestor', 'lider', 'visualizador'));
 
 create or replace function public.meu_perfil() returns jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object('papel', public.meu_papel(), 'email', (select email from auth.users where id = auth.uid()))
 $$;
 
--- nome curto para "atualizado por" (os dados são públicos: não expõe o e-mail inteiro)
+-- nome curto para "atualizado por" (não expõe o e-mail inteiro)
 create or replace function public._quem() returns text
 language sql stable security definer set search_path = public as $$
   select coalesce(split_part((select email from auth.users where id = auth.uid()), '@', 1), '?')
@@ -197,7 +203,7 @@ language plpgsql stable security definer set search_path = public as $$
 begin
   if public.meu_papel() <> 'gestor' then raise exception 'sem_permissao' using errcode = '42501'; end if;
   return query
-    select coalesce(c.email, p.email), coalesce(p.papel, c.papel), p.user_id is not null, u.email_confirmed_at is not null
+    select coalesce(c.email, p.email), coalesce(c.papel, 'sem_acesso'), p.user_id is not null, u.email_confirmed_at is not null
     from public.convites c
     full join public.perfis p on p.email = c.email
     left join auth.users u on u.id = p.user_id
@@ -230,7 +236,7 @@ begin
      and exists (select 1 from public.perfis where email = e and papel = 'gestor') then
     raise exception 'ultimo_gestor: precisa existir ao menos um Gestor' using errcode = '22023';
   end if;
-  delete from public.convites where email = e;
+  delete from public.convites where email = e;   -- sem convite = sem acesso (nem leitura)
   update public.perfis set papel = 'visualizador' where email = e;
   return jsonb_build_object('ok', true);
 end $$;
