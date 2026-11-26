@@ -3,7 +3,7 @@
  * mas montada automaticamente a partir dos registros de operação.
  */
 import { areaOperacao, ultimo, formatarDuracao, intervaloDatas, produtividadeEfetiva, produtividadeOperacional, safeDiv } from '../domain/calc';
-import { datasComOperacao, editarObservacao, resumoDia, type FiltroDia } from '../domain/diario';
+import { adicionarObservacao, datasComOperacao, editarObservacao, resumoDia, type FiltroDia } from '../domain/diario';
 import { adicionarParada, conteudoTurnoDia, editarEvento, excluirEvento, excluirTurnoDia, excluirVoos, voosNaHora } from '../domain/linhaTempo';
 import { novoId } from '../data/repository';
 import { tempoPorDrone, vooNoPeriodo, type TempoDrone } from '../domain/vooApp';
@@ -58,6 +58,7 @@ export function renderDiario(raiz: HTMLElement) {
     const bev = (e.target as HTMLElement).closest('[data-ev-editar]') as HTMLElement | null;
     if (bev) { editarEventoTela(host, evAtuais[Number(bev.dataset.evEditar)]); return; }
     if ((e.target as HTMLElement).closest('[data-ev-nova]')) { novaParadaTela(host); return; }
+    if ((e.target as HTMLElement).closest('[data-obs-nova]')) { novaObservacaoTela(host); return; }
     if ((e.target as HTMLElement).closest('[data-turno-excluir]')) { excluirTurnoTela(host); return; }
     const be = (e.target as HTMLElement).closest('[data-obs-editar],[data-obs-excluir]') as HTMLElement | null;
     if (be) { void acaoObservacao(host, be); return; }
@@ -192,7 +193,7 @@ function desenhar(host: HTMLElement) {
 
     <div class="dia-dupla inv">
       <section class="cartao">
-        <header class="cartao-cab"><div><h2 class="dia-tit">${icone('info', 16)} Observações</h2></div></header>
+        <header class="cartao-cab"><div><h2 class="dia-tit">${icone('info', 16)} Observações</h2><p>Anomalias, ocorrências e avisos do dia</p></div>${podeGravar() && r.ops.length ? `<button class="btn btn-sec btn-peq" data-obs-nova data-sem-exportar>${icone('mais', 14)} Adicionar observação</button>` : ''}</header>
         ${r.observacoes.length ? `<ul class="dia-obs">${r.observacoes.map((o, i) => `<li><b>${esc(o.aeronave)}</b> ${esc(o.texto)}${podeGravar() ? `<span class="dia-obs-acoes" data-sem-exportar><button class="btn-icone" data-obs-editar="${i}" title="Editar observação" aria-label="Editar observação">${icone('config', 13)}</button><button class="btn-icone" data-obs-excluir="${i}" title="Excluir observação" aria-label="Excluir observação">${icone('lixo', 13)}</button></span>` : ''}</li>`).join('')}</ul>` : '<p class="vazio-txt">Sem observações digitadas neste dia.</p>'}
       </section>
       <section class="cartao">
@@ -308,6 +309,25 @@ function editarEventoTela(host: HTMLElement, ev: import('../domain/diario').Even
     const erro = alterar((ds) => excluirEvento(ds, ev.tipo, refs()));
     if (erro) { msg(erro); return; }
     m.fechar(); toast('Parada excluída.', 'ok'); desenhar(host);
+  });
+}
+
+/** Adicionar observação do dia (anomalias, ocorrências): escolhe os drones e escreve o texto. */
+function novaObservacaoTela(host: HTMLElement) {
+  const drones = [...new Set(opsAtuais.map((o) => o.aeronaveId))];
+  if (!drones.length) return;
+  const m = abrirModal('Adicionar observação', `
+    <p class="nota">${esc(fmtData(dia))} · a observação aparece no Diário, na imagem, no PDF e no Excel do dia.</p>
+    <fieldset class="campo"><legend>Drones</legend>${drones.map((aid) => `<label class="chk"><input type="checkbox" data-no-drone="${esc(aid)}" checked> ${esc(nome.aeronave(aid))}</label>`).join('')}</fieldset>
+    <label class="campo"><span>Observação</span><textarea data-no-txt rows="5" placeholder="Ex.: drone DR-01 perdeu sinal no talhão 12; falha de bico; área com obstáculo não mapeado…"></textarea></label>
+    <div data-no-msg></div>`,
+    { rodapeHTML: `<button class="btn btn-sec" data-fechar>Cancelar</button><button class="btn btn-pri" data-no-ok>Salvar observação</button>` });
+  m.el.querySelector('[data-no-ok]')!.addEventListener('click', () => {
+    const ids = [...m.el.querySelectorAll<HTMLInputElement>('[data-no-drone]')].filter((c) => c.checked).map((c) => c.dataset.noDrone!);
+    const txt = (m.el.querySelector('[data-no-txt]') as HTMLTextAreaElement).value;
+    const erro = alterar((ds) => adicionarObservacao(ds, opsAtuais.map((o) => o.id), ids, txt));
+    if (erro) { (m.el.querySelector('[data-no-msg]') as HTMLElement).innerHTML = aviso('critico', esc(erro)); return; }
+    m.fechar(); toast('Observação adicionada.', 'ok'); desenhar(host);
   });
 }
 

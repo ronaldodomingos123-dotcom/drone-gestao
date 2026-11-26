@@ -51,6 +51,19 @@ with sync_playwright() as p:
     d = ds()
     ok('excluir remove dos dois voos', all(not o['observacoesOperador'] for o in d['operacoes']) and 'Sem observações digitadas' in pg.locator('#diario').inner_text())
     ok('auditoria registra edição e exclusão', sum(1 for a in d['auditoria'] if 'Observação' in a['resumo']) == 2)
+    # ---- adicionar observação direto no Diário
+    ok('botão "Adicionar observação" no cartão (fica fora da imagem)', pg.locator('[data-obs-nova]').count() == 1 and pg.locator('[data-obs-nova]').get_attribute('data-sem-exportar') is not None)
+    pg.click('[data-obs-nova]'); pg.wait_for_selector('.modal [data-no-txt]'); pg.click('.modal [data-no-ok]'); pg.wait_for_timeout(200)
+    ok('sem texto: recusa com mensagem', 'Escreva a observação' in pg.locator('.modal').inner_text())
+    pg.uncheck('.modal [data-no-drone="a2"]'); pg.fill('.modal [data-no-txt]', 'DR-01 perdeu sinal no talhão 12'); pg.click('.modal [data-no-ok]'); pg.wait_for_timeout(300)
+    d = ds(); o1 = [o for o in d['operacoes'] if o['id'] == 'op1'][0]; o2 = [o for o in d['operacoes'] if o['id'] == 'op2'][0]
+    ok('grava só no voo do drone escolhido e aparece no Diário', o1['observacoesOperador'] == 'DR-01 perdeu sinal no talhão 12' and not o2['observacoesOperador'] and pg.locator('.dia-obs li').count() == 1 and 'T70-P DR-01 DR-01 perdeu sinal no talhão 12' in pg.locator('.dia-obs').inner_text().replace('\n', ' '))
+    pg.click('[data-obs-nova]'); pg.wait_for_selector('.modal [data-no-txt]'); pg.fill('.modal [data-no-txt]', 'Falha de bico no DR-02'); pg.uncheck('.modal [data-no-drone="a1"]'); pg.click('.modal [data-no-ok]'); pg.wait_for_timeout(300)
+    ok('segunda observação vira outra linha', pg.locator('.dia-obs li').count() == 2 and 'Falha de bico no DR-02' in pg.locator('.dia-obs').inner_text())
+    ok('auditoria registra as observações adicionadas', sum(1 for a in ds()['auditoria'] if 'Observação adicionada' in a['resumo']) == 2)
+    for _ in range(2):
+        pg.locator('[data-obs-excluir]').first.click(); pg.locator('[data-ok]').last.click(); pg.wait_for_timeout(300)
+    ok('dá para excluir as observações adicionadas', 'Sem observações digitadas' in pg.locator('#diario').inner_text())
     # ---- linha do tempo: editar / excluir
     def ev_btn(tipo, n=0): return pg.locator(f'.dia-tempo .ev-{tipo}[data-ev-editar]').nth(n)
     ev_btn('pausa').click(); pg.wait_for_selector('.modal [data-ev-hora]')

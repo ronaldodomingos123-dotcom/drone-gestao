@@ -1541,3 +1541,22 @@ test('conferência de área no período: só o que caiu entre as datas, por OS, 
   assert.equal(ro.secoes[0].colunas.at(-1)!.titulo, 'Aplicado no período (ha)');
   assert.ok(Math.abs((ro.secoes[0].totais!.at(-1) as number) - esperado) < 1e-3);
 });
+
+test('adicionar observação: um voo por drone, de preferência sem texto; notas automáticas preservadas', async () => {
+  const { adicionarObservacao, observacoesDigitadas } = await import('../src/domain/diario');
+  const ds = gerarDemo();
+  const dia = ds.operacoes[0].data;
+  const ops = ds.operacoes.filter((o) => o.data === dia);
+  const aid = ops[0].aeronaveId;
+  const doDrone = ops.filter((o) => o.aeronaveId === aid);
+  doDrone.forEach((o) => { o.observacoesOperador = 'Fechamento do dia (ficha)'; });
+  assert.equal(adicionarObservacao(ds, ops.map((o) => o.id), [aid], '  '), 'Escreva a observação.');
+  assert.equal(adicionarObservacao(ds, ops.map((o) => o.id), [], 'x'), 'Escolha pelo menos um drone.');
+  assert.equal(adicionarObservacao(ds, ops.map((o) => o.id), [aid], 'Perdeu sinal'), null);
+  const comTexto = doDrone.filter((o) => o.observacoesOperador!.includes('Perdeu sinal'));
+  assert.equal(comTexto.length, 1, 'grava em um voo só');
+  assert.ok(comTexto[0].observacoesOperador!.startsWith('Fechamento do dia'), 'mantém a nota automática');
+  const obs = observacoesDigitadas(ds, ops);
+  assert.ok(obs.some((o) => o.texto === 'Perdeu sinal'));
+  assert.ok(ds.auditoria.some((a) => a.resumo.includes('Observação adicionada')));
+});

@@ -288,6 +288,29 @@ export function editarObservacao(ds: Dataset, opIds: string[], antigo: string, n
   return null;
 }
 
+/**
+ * Adiciona uma observação digitada no dia, para os drones escolhidos. Grava num voo de cada drone:
+ * de preferência um que ainda não tenha texto digitado (assim vira uma linha própria no Diário); se todos
+ * tiverem, junta ao último voo do drone. Retorna erro ou null.
+ */
+export function adicionarObservacao(ds: Dataset, opIdsDoDia: string[], aeronaveIds: string[], texto: string): string | null {
+  const t = texto.trim();
+  if (!t) return 'Escreva a observação.';
+  if (!aeronaveIds.length) return 'Escolha pelo menos um drone.';
+  const gravados: string[] = [];
+  for (const aid of aeronaveIds) {
+    const voos = ds.operacoes.filter((o) => opIdsDoDia.includes(o.id) && o.aeronaveId === aid)
+      .sort((a, b) => (a.horaFim ?? '').localeCompare(b.horaFim ?? '') || a.id.localeCompare(b.id));
+    if (!voos.length) continue;
+    const alvo = voos.find((o) => !textosDigitados(o.observacoesOperador).length) ?? voos[voos.length - 1];
+    alvo.observacoesOperador = [...partesObs(alvo.observacoesOperador ?? '').map((p) => p.trim()).filter(Boolean), t].join(' · ');
+    gravados.push(alvo.id);
+  }
+  if (!gravados.length) return 'Nenhum voo desses drones neste dia.';
+  registrar(ds, { entidade: 'operacao', entidadeId: gravados[0], acao: 'editar', resumo: `Observação adicionada: "${t}"`, depois: t });
+  return null;
+}
+
 /** Duração da união de intervalos (minutos), sem contar duas vezes o que se sobrepõe. */
 export function duracaoUniao(iv: [number, number][]): number {
   const o = iv.filter(([a, b]) => b > a).sort((x, y) => x[0] - y[0]);

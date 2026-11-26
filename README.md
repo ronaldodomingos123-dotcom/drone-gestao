@@ -157,6 +157,10 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Diário: adicionar observação (v1.7.38)
+
+- Cartão Observações ganha "Adicionar observação" (Gestor e Líder): escolhe os drones e escreve o texto (anomalias, ocorrências). Grava num voo de cada drone do dia, de preferência um sem texto digitado, mantendo as notas automáticas. Aparece no Diário, na imagem, no PDF e no Excel; edita e exclui como as demais. Registro no Histórico.
+
 ## Sequência: "Todas concluídas" (v1.7.37)
 
 - No seletor de campanha, grupo Concluídas, a opção "Todas concluídas" junta as OS de todas as campanhas já terminadas (cada linha diz a campanha). Funciona com a consulta "Concluídas de / até" e com as exportações. É só consulta: subir, descer e arrastar não mudam a ordem nessa visão.
