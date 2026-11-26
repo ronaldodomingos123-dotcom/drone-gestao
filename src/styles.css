@@ -1140,3 +1140,9 @@ body.acesso-bloqueado .lateral nav, body.acesso-bloqueado .barra-inferior, body.
 .bloqueio h1 { margin: 0; font-size: 22px; }
 .bloqueio p { margin: 0; line-height: 1.5; color: var(--texto-2); }
 .bloqueio-ico { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; background: var(--fundo-2, #eef2f6); color: var(--texto); }
+
+.area-modo { display: inline-flex; border: 1px solid var(--borda, #d5dbe4); border-radius: 8px; overflow: hidden; margin-right: 10px; vertical-align: middle; }
+.area-modo button { border: 0; background: transparent; padding: 4px 12px; font: inherit; font-size: 12.5px; font-weight: 600; color: #5d6878; cursor: pointer; }
+.area-modo button + button { border-left: 1px solid var(--borda, #d5dbe4); }
+.area-modo button.ativo { background: #13263f; color: #fff; }
+.area-modo button:disabled { opacity: .45; cursor: not-allowed; }

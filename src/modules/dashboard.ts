@@ -62,6 +62,9 @@ const CHAVE_BASE = `${PREFIXO}previsao-base`;
 type BasePrevisao = 'periodo' | '14' | '7';
 let basePrevisao: BasePrevisao = (() => { try { const v = localStorage.getItem(CHAVE_BASE); return v === '14' || v === '7' ? v : 'periodo'; } catch { return 'periodo'; } })();
 const maxData = (a: string, b: string) => (a > b ? a : b);
+let modoArea: 'dia' | 'mes' = (() => { try { return localStorage.getItem(`${PREFIXO}area-modo`) === 'mes' ? 'mes' : 'dia'; } catch { return 'dia'; } })();
+const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const MESES_C = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const DIAS_SEMANA = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
 const diaSemana = (d: string) => { const [y, m, dd] = d.split('-').map(Number); return DIAS_SEMANA[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()]; };
 
@@ -157,6 +160,7 @@ function desenhar(corpo: HTMLElement) {
     else if (d.tipo === 'sem_registro' && d.data < hojeD) marcaPorData.set(d.data, { tipo: 'sem_registro' });
   }
   const temMarcas = marcaPorData.size > 0;
+  const variosMeses = f.de.slice(0, 7) !== f.ate.slice(0, 7);
   const temParcial = [...marcaPorData.values()].some((x) => x.tipo === 'parcial');
   const diasRitmoMeta = ind.areaRestante > 0 ? safeDiv(ind.areaRestante, mDiaMedia) : 0;
   const dataMeta = diasRitmoMeta === null ? null : addDias(f.ate, Math.ceil(diasRitmoMeta));
@@ -227,7 +231,7 @@ function desenhar(corpo: HTMLElement) {
     </div>
 
     <div class="grade-graficos">
-      ${cartaoGrafico('g-dia', 'Área aplicada × planejado por dia', `Meta: ${fmtNum(mDiaMedia, 0)} ha/dia (${rotEscopo})${temMarcas ? ' · motivo nos dias sem aplicação' : ''}${temParcial ? ' · ½ = só um turno parado' : ''}`, legenda([{ nome: 'Aplicado', cor: CORES.realizado }, { nome: 'Planejado (meta diária)', cor: CORES.planejado, tracejada: true }, ...(temMarcas ? [{ nome: 'Sem aplicação (motivo)', cor: '#e98a2b' }, { nome: 'Sem registro', cor: '#c7ced9' }] : [])]), 'largo')}
+      ${cartaoGrafico('g-dia', modoArea === 'mes' && variosMeses ? 'Área aplicada × planejado por mês' : 'Área aplicada × planejado por dia', modoArea === 'mes' && variosMeses ? `Meta do mês = meta diária × dias de trabalho do mês na campanha · meses incompletos proporcionais` : `Meta: ${fmtNum(mDiaMedia, 0)} ha/dia (${rotEscopo})${temMarcas ? ' · motivo nos dias sem aplicação' : ''}${temParcial ? ' · ½ = só um turno parado' : ''}`, `<div class="area-modo" role="group" aria-label="Agrupar"><button type="button" data-area-modo="dia" class="${modoArea === 'dia' || !variosMeses ? 'ativo' : ''}">Dia</button><button type="button" data-area-modo="mes" class="${modoArea === 'mes' && variosMeses ? 'ativo' : ''}" ${variosMeses ? '' : 'disabled title="O período filtrado precisa ter dois meses ou mais"'}>Mês</button></div>` + legenda([{ nome: 'Aplicado', cor: CORES.realizado }, { nome: modoArea === 'mes' && variosMeses ? 'Planejado (meta do mês)' : 'Planejado (meta diária)', cor: CORES.planejado, tracejada: true }, ...(temMarcas && !(modoArea === 'mes' && variosMeses) ? [{ nome: 'Sem aplicação (motivo)', cor: '#e98a2b' }, { nome: 'Sem registro', cor: '#c7ced9' }] : [])]), 'largo')}
       ${cartaoGrafico('g-motivos', 'Motivos de parada', 'Tempo parado por motivo no período · no relógio (drones parados juntos contam uma vez)')}
       ${cartaoGrafico('g-evolucao', 'Evolução da campanha e projeção', 'Acumulado real, projeção pelo ritmo real, ritmo planejado e total planejado', legenda([{ nome: 'Aplicada acumulada', cor: CORES.realizado }, { nome: 'Projeção (ritmo real)', cor: CORES.realizado, pontilhada: true }, { nome: 'Ritmo planejado (meta)', cor: CORES.operacional, tracejada: true }, { nome: 'Total planejado', cor: CORES.planejado, tracejada: true }]), 'largo')}
       ${cartaoGrafico('g-semana', 'Área aplicada × planejado por semana', `Meta: ${fmtNum(mDia * ds.metas.diasPorSemana, 0)} ha/semana · semanas parciais proporcionais`, legenda([{ nome: 'Aplicado', cor: CORES.realizado }, { nome: 'Planejado', cor: CORES.planejado, tracejada: true }]))}
@@ -253,11 +257,42 @@ function desenhar(corpo: HTMLElement) {
   // Gráficos
   const passo = (n: number) => Math.max(1, Math.ceil(n / 8));
   const dias = areaPorDia(areaPer, f.de, f.ate);
-  barras(corpo.querySelector('#g-dia')!, dias.map((p) => ({ ...p, titulo: fmtData(p.rotulo) })), {
+  if (modoArea === 'mes' && variosMeses) {
+    // agrupa os mesmos dados diários por mês (aplicado e meta somados; dias fora da campanha têm meta 0)
+    const meses: { mes: string; valor: number; meta: number; ini: string; fim: string; comArea: number; parados: Map<string, number>; semReg: number }[] = [];
+    dias.forEach((p, i) => {
+      const k = p.rotulo.slice(0, 7);
+      let m = meses[meses.length - 1];
+      if (!m || m.mes !== k) { m = { mes: k, valor: 0, meta: 0, ini: p.rotulo, fim: p.rotulo, comArea: 0, parados: new Map(), semReg: 0 }; meses.push(m); }
+      m.valor += p.valor; m.meta += metasDia[i]?.meta ?? 0; m.fim = p.rotulo; if (p.valor > 0) m.comArea++;
+      const mk = marcaPorData.get(p.rotulo);
+      if (mk?.tipo === 'parado') m.parados.set(mk.motivo ?? 'Sem motivo', (m.parados.get(mk.motivo ?? 'Sem motivo') ?? 0) + 1);
+      else if (mk?.tipo === 'sem_registro') m.semReg++;
+    });
+    const nomeMes = (k: string) => { const [y, mm] = k.split('-').map(Number); return `${MESES[mm - 1]}/${y}`; };
+    const diasDoMes = (k: string) => { const [y, mm] = k.split('-').map(Number); return new Date(Date.UTC(y, mm, 0)).getUTCDate(); };
+    barras(corpo.querySelector('#g-dia')!, meses.map((m) => {
+      const parcial = Number(m.ini.slice(8)) > 1 || Number(m.fim.slice(8)) < diasDoMes(m.mes);
+      return { rotulo: m.mes, valor: m.valor, titulo: `${nomeMes(m.mes)}${parcial ? ` (${fmtDataCurta(m.ini)} a ${fmtDataCurta(m.fim)})` : ''}` };
+    }), {
+      cor: CORES.realizado, unidade: 'ha', casas: 0, rotuloX: (r) => { const [y, mm] = r.split('-').map(Number); return `${MESES_C[mm - 1]}/${String(y).slice(2)}`; },
+      meta: { nome: 'Planejado', cor: CORES.planejado, valores: meses.map((m) => m.meta), detalhe: (i) => {
+        const m = meses[i]; if (!m) return '';
+        const top = [...m.parados.entries()].sort((a, b) => b[1] - a[1])[0];
+        const nPar = [...m.parados.values()].reduce((a, b) => a + b, 0);
+        return `<div class="tl">Dias com aplicação<b>${m.comArea}</b></div><div class="tl">Dias sem aplicação<b>${nPar}${top ? ` · mais: ${esc(motivoCurto(top[0]))} (${top[1]})` : ''}</b></div>${m.semReg ? `<div class="tl">Sem registro<b>${m.semReg} dia(s)</b></div>` : ''}`;
+      } },
+    });
+  } else barras(corpo.querySelector('#g-dia')!, dias.map((p) => ({ ...p, titulo: fmtData(p.rotulo) })), {
     cor: CORES.realizado, unidade: 'ha', rotuloX: (r) => fmtDataCurta(r), rotulosPorLargura: true,
     meta: { nome: 'Planejado', cor: CORES.planejado, valores: metasDia.map((x) => x.meta) },
     dias: temMarcas ? dias.map((p) => marcaPorData.get(p.rotulo) ?? null) : undefined,
   });
+  corpo.querySelectorAll<HTMLButtonElement>('[data-area-modo]').forEach((b) => b.addEventListener('click', () => {
+    const v = b.dataset.areaModo === 'mes' ? 'mes' : 'dia'; if (v === modoArea) return;
+    modoArea = v; try { localStorage.setItem(`${PREFIXO}area-modo`, v); } catch { /* opcional */ }
+    desenhar(corpo);
+  }));
   // semanas: meta proporcional só aos dias dentro da janela da campanha
   const naJanela = (d: string) => !((iniOp && d < iniOp) || (fimOp && d > fimOp));
   const metasSem = metaPorSemana(ds.metas, f.de, f.ate, escopoMeta).map((x) => {
