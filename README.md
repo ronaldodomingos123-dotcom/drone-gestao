@@ -157,6 +157,11 @@ scripts/       build (arquivo único) e execução de testes
 - O projeto grátis do Supabase pausa após cerca de 1 semana sem uso (reativar no painel).
 - Ainda não testado contra o projeto real a partir deste ambiente (a rede daqui não alcança o Supabase): o botão "Testar segurança da nuvem" faz essa conferência no navegador do usuário.
 
+## Dashboard: área por mês (v1.8.1)
+
+- O cartão "Área aplicada × planejado" ganha a chave Dia | Mês. Em Mês: uma barra por mês e a meta do mês (meta diária × dias do mês dentro do período e da campanha; meses incompletos proporcionais). O detalhe do mês mostra % atingido, dias com aplicação, dias sem aplicação com o motivo mais comum e dias sem registro.
+- "Mês" só fica disponível quando o filtro cobre dois meses ou mais; a escolha fica lembrada no aparelho. Teste: `tests/e2e/dashboard_mes.py`.
+
 ## Acesso restrito (v1.8.0)
 
 - Sem login o app não mostra nada: abre a tela "Acesso restrito" com e-mail e senha. Nenhum dado da nuvem fica no aparelho de quem não entrou.
